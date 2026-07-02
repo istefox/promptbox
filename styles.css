@@ -1,1 +1,163 @@
 /* Promptbox — plugin styles. Uses Obsidian CSS variables only (ADR-0002). */
+
+.promptbox-library {
+	padding: var(--size-4-3);
+}
+
+/* Filter bar */
+.promptbox-filters__row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin-bottom: var(--size-4-2);
+}
+
+.promptbox-filters__search {
+	flex: 1 1 240px;
+	min-width: 160px;
+}
+
+.promptbox-filters__clear.is-hidden {
+	display: none;
+}
+
+.promptbox-filters__label {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-right: var(--size-2-2);
+}
+
+.promptbox-filters__group {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-2-2);
+	margin-right: var(--size-4-3);
+}
+
+.promptbox-chip {
+	font-size: var(--font-ui-smaller);
+	padding: var(--size-2-1) var(--size-2-3);
+	border-radius: var(--radius-l);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	cursor: pointer;
+}
+
+.promptbox-chip.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.promptbox-library__count {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-bottom: var(--size-4-2);
+}
+
+/* List */
+.promptbox-library__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+
+.promptbox-item {
+	padding: var(--size-4-2) var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: var(--background-primary);
+}
+
+.promptbox-item__header {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-3);
+}
+
+.promptbox-item__title {
+	font-weight: var(--font-semibold);
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.promptbox-item__warning {
+	color: var(--text-warning);
+	display: inline-flex;
+}
+
+.promptbox-item__quality {
+	color: var(--text-accent);
+	font-size: var(--font-ui-smaller);
+}
+
+.promptbox-item__meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-2-2);
+	margin-top: var(--size-2-2);
+}
+
+.promptbox-pill {
+	font-size: var(--font-ui-smaller);
+	padding: 0 var(--size-2-3);
+	border-radius: var(--radius-l);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	overflow-wrap: anywhere;
+}
+
+.promptbox-chip {
+	overflow-wrap: anywhere;
+}
+
+.promptbox-pill--type {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.promptbox-item__date {
+	margin-left: auto;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.promptbox-item__usecase {
+	margin-top: var(--size-2-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	overflow-wrap: anywhere;
+}
+
+.promptbox-library__empty {
+	color: var(--text-muted);
+	padding: var(--size-4-4);
+	text-align: center;
+}
+
+/* Mobile pass (FR-2.7): single column, comfortable touch targets */
+.is-mobile .promptbox-filters__row {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.is-mobile .promptbox-filters__search,
+.is-mobile .promptbox-filters__row .dropdown,
+.is-mobile .promptbox-filters__date,
+.is-mobile .promptbox-filters__clear {
+	min-height: 44px;
+	width: 100%;
+}
+
+.is-mobile .promptbox-chip {
+	min-height: 44px;
+	padding: var(--size-2-2) var(--size-4-2);
+}
+
+.is-mobile .promptbox-item__date {
+	margin-left: 0;
+	width: 100%;
+}

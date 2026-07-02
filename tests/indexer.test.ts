@@ -8,6 +8,7 @@ function makePrompt(path: string, title = path): Prompt {
 
 class FakeVault implements IndexerHost {
 	files = new Map<string, Prompt>();
+	bodies = new Map<string, string>();
 
 	listMarkdownFiles(): string[] {
 		return [...this.files.keys()];
@@ -17,12 +18,18 @@ class FakeVault implements IndexerHost {
 		return this.files.get(path) ?? null;
 	}
 
-	put(path: string, title = path): void {
+	readBody(path: string): Promise<string> {
+		return Promise.resolve(this.bodies.get(path) ?? "");
+	}
+
+	put(path: string, title = path, body = `body of ${title}`): void {
 		this.files.set(path, makePrompt(path, title));
+		this.bodies.set(path, body);
 	}
 
 	remove(path: string): void {
 		this.files.delete(path);
+		this.bodies.delete(path);
 	}
 }
 
@@ -83,22 +90,24 @@ describe("PromptIndex — vault events (FR-1)", () => {
 
 		// interleaved create / modify / rename / delete
 		vault.put("Prompts/a.md", "A");
-		index.handleCreateOrModify("Prompts/a.md");
+		await index.handleCreateOrModify("Prompts/a.md");
 		vault.put("Prompts/b.md", "B");
-		index.handleCreateOrModify("Prompts/b.md");
+		await index.handleCreateOrModify("Prompts/b.md");
 		vault.put("Prompts/a.md", "A2");
-		index.handleCreateOrModify("Prompts/a.md");
+		await index.handleCreateOrModify("Prompts/a.md");
 		vault.remove("Prompts/a.md");
 		vault.put("Prompts/a2.md", "A2");
-		index.handleRename("Prompts/a.md", "Prompts/a2.md");
+		await index.handleRename("Prompts/a.md", "Prompts/a2.md");
 		vault.remove("Prompts/b.md");
 		index.handleDelete("Prompts/b.md");
 		vault.put("Prompts/c.md", "C");
-		index.handleCreateOrModify("Prompts/c.md");
+		await index.handleCreateOrModify("Prompts/c.md");
 
 		expect(index.size).toBe(2);
 		expect(index.get("Prompts/a2.md")?.title).toBe("A2");
 		expect(index.get("Prompts/c.md")?.title).toBe("C");
+		expect(index.getBody("Prompts/a2.md")).toBe("body of A2");
+		expect(index.getBody("Prompts/b.md")).toBe("");
 		expect(index.get("Prompts/a.md")).toBeUndefined();
 		expect(index.get("Prompts/b.md")).toBeUndefined();
 	});
@@ -108,8 +117,8 @@ describe("PromptIndex — vault events (FR-1)", () => {
 		const index = new PromptIndex(vault, "Prompts", 50, instantYield);
 		await index.scan();
 		vault.put("Elsewhere/x.md");
-		index.handleCreateOrModify("Elsewhere/x.md");
-		index.handleCreateOrModify("Prompts/image.png");
+		await index.handleCreateOrModify("Elsewhere/x.md");
+		await index.handleCreateOrModify("Prompts/image.png");
 		expect(index.size).toBe(0);
 	});
 
@@ -121,12 +130,12 @@ describe("PromptIndex — vault events (FR-1)", () => {
 
 		vault.remove("Prompts/in.md");
 		vault.put("Archive/in.md", "In");
-		index.handleRename("Prompts/in.md", "Archive/in.md");
+		await index.handleRename("Prompts/in.md", "Archive/in.md");
 		expect(index.size).toBe(0);
 
 		vault.remove("Archive/in.md");
 		vault.put("Prompts/back.md", "Back");
-		index.handleRename("Archive/in.md", "Prompts/back.md");
+		await index.handleRename("Archive/in.md", "Prompts/back.md");
 		expect(index.size).toBe(1);
 	});
 
@@ -137,10 +146,11 @@ describe("PromptIndex — vault events (FR-1)", () => {
 		index.onChange((event) => events.push(event));
 		await index.scan();
 		vault.put("Prompts/a.md");
-		index.handleCreateOrModify("Prompts/a.md");
-		index.handleCreateOrModify("Prompts/a.md");
+		await index.handleCreateOrModify("Prompts/a.md");
+		await index.handleCreateOrModify("Prompts/a.md");
 		index.handleDelete("Prompts/a.md");
-		expect(events).toEqual(["scan", "add", "update", "remove"]);
+		// first create: "add" + "update" once the body loads; second modify: body unchanged, single "update"
+		expect(events).toEqual(["scan", "add", "update", "update", "remove"]);
 	});
 
 	it("re-indexes on folder change (FR-1.2)", async () => {
