@@ -1,0 +1,5 @@
+# Opt-in marker for nightly-autopilot (ADR-0022). Human-approved 2026-07-03.
+# publish: true allows the overnight run to push feat/* branches and open PRs.
+# No prep block: PROJECT.md roadmap and feature definitions already exist
+# (docs/competitive-analysis.md sections referenced per feature).
+publish: true
