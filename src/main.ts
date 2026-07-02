@@ -5,9 +5,10 @@ import { PromptIndex } from "./storage/indexer";
 import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
 import { PromptModal } from "./ui/prompt-modal";
 import { PromptQuickPicker } from "./ui/quick-picker";
+import { collectVaultTags } from "./ui/suggest";
 import { ImportModal } from "./ui/import-modal";
 import { buildExport } from "./domain/transfer";
-import { exportToVaultFile } from "./storage/transfer-io";
+import { exportWithDialog } from "./storage/transfer-io";
 import type { Prompt } from "./domain/prompt";
 import { PromptboxSettingTab } from "./ui/settings-tab";
 
@@ -137,15 +138,38 @@ export default class PromptboxPlugin extends Plugin {
 			new Date().toISOString(),
 		);
 		try {
-			const file = await exportToVaultFile(this.app, doc);
-			new Notice(`Exported ${prompts.length} prompt(s) to ${file.path}`);
+			const dest = await exportWithDialog(this.app, doc);
+			if (dest.kind === "cancelled") return;
+			const where = dest.kind === "picker" ? dest.name : `${dest.path} (vault root)`;
+			new Notice(`Exported ${prompts.length} prompt(s) to ${where}`);
 		} catch (error) {
 			new Notice(`Promptbox: export failed — ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
+	private modalDeps() {
+		return {
+			settings: this.settings,
+			folder: this.settings.promptsFolder,
+			tagPool: this.buildTagPool(),
+			persistSettings: () => this.saveSettings(),
+			openFile: (file: TFile) => {
+				void this.app.workspace.getLeaf(false).openFile(file);
+			},
+		};
+	}
+
+	/** Library tags first, vault-wide tags after (keeps FR-3.4, pushes noise down). */
+	private buildTagPool(): string[] {
+		const fromPrompts = new Set<string>();
+		for (const p of this.index.getAll()) for (const t of p.tags) fromPrompts.add(t);
+		const pool = [...fromPrompts].sort((a, b) => a.localeCompare(b));
+		for (const t of collectVaultTags(this.app)) if (!fromPrompts.has(t)) pool.push(t);
+		return pool;
+	}
+
 	openCreateModal(): void {
-		new PromptModal(this.app, this.settings, this.settings.promptsFolder, { kind: "create" }).open();
+		new PromptModal(this.app, this.modalDeps(), { kind: "create" }).open();
 	}
 
 	openEditModal(path: string): void {
@@ -155,11 +179,7 @@ export default class PromptboxPlugin extends Plugin {
 			new Notice("Promptbox: prompt not found.");
 			return;
 		}
-		new PromptModal(this.app, this.settings, this.settings.promptsFolder, {
-			kind: "edit",
-			file,
-			prompt,
-		}).open();
+		new PromptModal(this.app, this.modalDeps(), { kind: "edit", file, prompt }).open();
 	}
 
 	async saveSettings(): Promise<void> {

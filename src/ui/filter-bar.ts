@@ -92,6 +92,7 @@ export function renderFilterBar(
 		onChange();
 	});
 
+	row3.createSpan({ text: "Updated", cls: "promptbox-filters__label" });
 	const fromInput = row3.createEl("input", { type: "date", cls: "promptbox-filters__date" });
 	fromInput.setAttribute("aria-label", "Updated from");
 	const toInput = row3.createEl("input", { type: "date", cls: "promptbox-filters__date" });

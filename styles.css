@@ -224,3 +224,129 @@
 .is-mobile .promptbox-library__count-row button {
 	min-height: 44px;
 }
+
+/* View title header (backlog 19) */
+.promptbox-library__title {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin-bottom: var(--size-4-3);
+	font-size: var(--h1-size);
+}
+
+.promptbox-library__title h1 {
+	margin: 0;
+	font-size: var(--h1-size);
+	font-weight: var(--h1-weight);
+}
+
+.promptbox-library__title .promptbox-field-icon svg {
+	width: 1em;
+	height: 1em;
+}
+
+.promptbox-library__buttons {
+	display: flex;
+	gap: var(--size-4-2);
+}
+
+/* Field icons (backlog 14) */
+.promptbox-field-icon {
+	display: inline-flex;
+	align-items: center;
+	margin-right: var(--size-2-3);
+	color: var(--text-muted);
+	vertical-align: middle;
+}
+
+.promptbox-modal .setting-item-name,
+.promptbox-taxo-row .setting-item-name {
+	display: inline-flex;
+	align-items: center;
+}
+
+/* Wider, denser modal (backlog 1, 2) */
+.promptbox-modal--wide {
+	width: min(700px, 92vw);
+}
+
+.promptbox-modal .setting-item {
+	padding: var(--size-2-3) 0;
+}
+
+.promptbox-setting--stacked {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+.promptbox-setting--stacked .setting-item-control {
+	width: 100%;
+	margin-top: var(--size-2-2);
+}
+
+.promptbox-setting--stacked textarea {
+	width: 100%;
+	resize: vertical;
+}
+
+/* Tags container with empty state (backlog 4) */
+.promptbox-tags-box {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+	min-width: min(260px, 100%);
+	padding: var(--size-2-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+}
+
+.promptbox-tags-box__empty {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.promptbox-inline-add .setting-item-control input {
+	flex: 1;
+}
+
+/* Compact taxonomy rows in settings (backlog 6) */
+.promptbox-taxo-row {
+	padding: var(--size-2-2) 0;
+	border-top: none;
+}
+
+.promptbox-taxo-row .setting-item-info {
+	display: none;
+}
+
+.promptbox-taxo-row .setting-item-control {
+	width: 100%;
+	justify-content: flex-start;
+}
+
+.promptbox-taxo-row .setting-item-control input[type="text"] {
+	flex: 1;
+}
+
+/* Card refinements (backlog 12, 15) */
+.promptbox-item__header .promptbox-item__actions {
+	margin: 0 0 0 var(--size-4-2);
+}
+
+.promptbox-item__version {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+
+.promptbox-pill--visibility {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.is-mobile .promptbox-library__buttons button {
+	min-height: 44px;
+}
+
+.is-mobile .promptbox-item__header {
+	flex-wrap: wrap;
+}
