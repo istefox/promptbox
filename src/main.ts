@@ -4,6 +4,7 @@ import { readPromptFromCache, stripFrontmatter } from "./storage/frontmatter";
 import { PromptIndex } from "./storage/indexer";
 import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
 import { PromptModal } from "./ui/prompt-modal";
+import { PromptQuickPicker } from "./ui/quick-picker";
 import { PromptboxSettingTab } from "./ui/settings-tab";
 
 export default class PromptboxPlugin extends Plugin {
@@ -63,13 +64,14 @@ export default class PromptboxPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "dump-index",
-			name: "Dump index (debug)",
-			callback: () => {
-				const all = this.index.getAll();
-				console.log(`Promptbox index: ${all.length} prompt(s)`, all);
-				new Notice(`Promptbox index: ${all.length} prompt(s) — details in console.`);
-			},
+			id: "copy-prompt",
+			name: "Copy prompt",
+			callback: () => new PromptQuickPicker(this.app, this, false).open(),
+		});
+		this.addCommand({
+			id: "copy-prompt-raw",
+			name: "Copy prompt (raw)",
+			callback: () => new PromptQuickPicker(this.app, this, true).open(),
 		});
 
 		// Deferred start: no vault I/O before the layout is ready (NFR-2).
