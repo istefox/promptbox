@@ -13,7 +13,6 @@ TypeScript `strict: true`, esbuild, ESLint. Official Obsidian plugin API only. D
 ## Commands
 
 ```bash
-# Available after Tier 0 (toolchain setup); keep in sync with package.json
 npm install
 npm run dev      # esbuild watch build
 npm run build    # typecheck + production build
