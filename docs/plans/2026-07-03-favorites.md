@@ -83,7 +83,7 @@ Observable-contract check (done up front, not left for the coder to discover): e
   - Files: `src/storage/prompt-writer.ts` (modify).
   - Test: none (glue boundary — see "Testing boundary" above; `createPrompt`/`updatePrompt`/`deletePrompt` in this same file are equally untested today). Verified by Task 4's manual smoke check (toggle a card, open the note, confirm the frontmatter line appears/disappears) and, as a standing regression net that already exists and needs no new code, `draft.test.ts`'s exact-shape assertion on `draftToFrontmatter`'s output — it will fail if a future change ever makes the draft path start emitting a `favorite` key, which is exactly the property this task's "no `updated` stamp, no draft involvement" design relies on.
 
-- [ ] **4. UI: library view star toggle**
+- [x] **4. UI: library view star toggle**
   - Goal: in `src/ui/library-view.ts`'s `renderItem`, create a star button as the **first** child of the header (before the title span, not inside `.promptbox-item__actions`), reusing `promptbox-item__action clickable-icon` plus a new `is-favorite` modifier when `prompt.favorite`; set `aria-pressed`, `aria-label`/tooltip ("Add to favorites" / "Remove from favorites"); on click, resolve the `TFile` at click time (same pattern as `confirmDelete`/`openAsNote`) and call `setFavorite`, with a `Notice` only on failure — no success `Notice`, no manual `render()` call, the existing `index.onChange` subscription redraws the view:
     ```ts
     const favoriteBtn = header.createEl("button", {
@@ -112,12 +112,12 @@ Observable-contract check (done up front, not left for the coder to discover): e
   - Files: `src/ui/library-view.ts` (modify), `styles.css` (modify).
   - Test: none (glue boundary). Manual smoke check: click the star on desktop and on a mobile client, confirm the note's frontmatter gains/loses `favorite: true` within ~1 s, confirm the star's filled/outline state matches, confirm rapid repeated clicks do not corrupt the note (Task 3's writer has no explicit debounce — verify Obsidian's `processFrontMatter` serializes this safely in practice), and confirm disabling the plugin still shows a plain, readable note (US-8).
 
-- [ ] **5. UI: filter bar chip and sort checkbox**
+- [x] **5. UI: filter bar chip and sort checkbox**
   - Goal: in `src/ui/filter-bar.ts`, add a fixed "★ Favorites" chip (reuses the existing `promptbox-chip`/`is-active` pattern) bound to `query.favoritesOnly`. Unlike the dynamic type/category/tag chip groups, it always renders — it is a fixed filter dimension, not a value discovered from `FilterOptions`, so `FilterOptions` itself does not change. Add a "Favorites first" checkbox next to the sort dropdown in row 1, bound to `query.favoritesFirst`. Both call the existing `onChange` callback; `sync()` gains two lines (`chip.toggleClass("is-active", query.favoritesOnly)`, `favoritesFirstCheckbox.checked = query.favoritesFirst`) matching the existing style used for `clearBtn`/`qualitySelect`/etc. The "Clear filters" button needs no code change — `Object.assign(query, emptyQuery())` already resets both new fields once Task 2 lands.
   - Files: `src/ui/filter-bar.ts` (modify), `styles.css` (modify: a small layout rule for the new checkbox label, plus its mobile tap-target sizing under the existing `.is-mobile` block).
   - Test: none directly (glue boundary); the filtering/sorting behavior itself is fully covered by Task 2's `query.test.ts` additions, since the bar is a thin view over `LibraryQuery`. Manual smoke check: enable "Favorites" with `type=task` active, confirm only favorite task prompts remain and the count updates; toggle "Favorites first" and confirm favorites float to the top within the active sort order; click "Clear filters" and confirm both controls reset.
 
-- [ ] **6. UI: quick picker star indicator and ranking, full verification pass**
+- [x] **6. UI: quick picker star indicator and ranking, full verification pass**
   - Goal: in `src/ui/quick-picker.ts`, import `rankFavoritesFirst` and override `getSuggestions`/`renderSuggestion`:
     ```ts
     override getSuggestions(query: string): FuzzyMatch<Prompt>[] {
