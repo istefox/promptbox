@@ -22,6 +22,11 @@ export function readPromptFromCache(app: App, file: TFile): Prompt {
 	});
 }
 
+/** Strips the leading YAML frontmatter block from raw note content. */
+export function stripFrontmatter(raw: string): string {
+	return raw.replace(/^---\r?\n[\s\S]*?\r?\n---(\r?\n|$)/, "");
+}
+
 /**
  * Stamps dates on a plugin-driven save: `created` once, `updated` always (§3.2).
  * Writes go exclusively through the official frontmatter API (ADR-0001).

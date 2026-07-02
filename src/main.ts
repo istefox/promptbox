@@ -1,7 +1,8 @@
 import { Notice, Plugin, TFile } from "obsidian";
 import { mergeSettings, type PromptboxSettings } from "./settings";
-import { readPromptFromCache } from "./storage/frontmatter";
+import { readPromptFromCache, stripFrontmatter } from "./storage/frontmatter";
 import { PromptIndex } from "./storage/indexer";
+import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
 
 export default class PromptboxPlugin extends Plugin {
 	override settings!: PromptboxSettings;
@@ -17,9 +18,25 @@ export default class PromptboxPlugin extends Plugin {
 					const file = this.app.vault.getFileByPath(path);
 					return file ? readPromptFromCache(this.app, file) : null;
 				},
+				readBody: async (path) => {
+					const file = this.app.vault.getFileByPath(path);
+					return file ? stripFrontmatter(await this.app.vault.cachedRead(file)) : "";
+				},
 			},
 			this.settings.promptsFolder,
 		);
+
+		this.registerView(VIEW_TYPE_LIBRARY, (leaf) => new PromptboxLibraryView(leaf, this));
+		this.addRibbonIcon("library", "Open Promptbox library", () => {
+			void this.activateLibraryView();
+		});
+		this.addCommand({
+			id: "open-library",
+			name: "Open library",
+			callback: () => {
+				void this.activateLibraryView();
+			},
+		});
 
 		this.addCommand({
 			id: "dump-index",
@@ -36,12 +53,12 @@ export default class PromptboxPlugin extends Plugin {
 			void this.index.scan();
 			this.registerEvent(
 				this.app.metadataCache.on("changed", (file) => {
-					if (file instanceof TFile) this.index.handleCreateOrModify(file.path);
+					if (file instanceof TFile) void this.index.handleCreateOrModify(file.path);
 				}),
 			);
 			this.registerEvent(
 				this.app.vault.on("create", (file) => {
-					if (file instanceof TFile) this.index.handleCreateOrModify(file.path);
+					if (file instanceof TFile) void this.index.handleCreateOrModify(file.path);
 				}),
 			);
 			this.registerEvent(
@@ -51,10 +68,20 @@ export default class PromptboxPlugin extends Plugin {
 			);
 			this.registerEvent(
 				this.app.vault.on("rename", (file, oldPath) => {
-					if (file instanceof TFile) this.index.handleRename(oldPath, file.path);
+					if (file instanceof TFile) void this.index.handleRename(oldPath, file.path);
 				}),
 			);
 		});
+	}
+
+	async activateLibraryView(): Promise<void> {
+		const { workspace } = this.app;
+		let leaf = workspace.getLeavesOfType(VIEW_TYPE_LIBRARY)[0];
+		if (!leaf) {
+			leaf = workspace.getLeaf(true);
+			await leaf.setViewState({ type: VIEW_TYPE_LIBRARY, active: true });
+		}
+		await workspace.revealLeaf(leaf);
 	}
 
 	async saveSettings(): Promise<void> {
