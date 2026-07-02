@@ -1,0 +1,10 @@
+{
+	"id": "promptbox",
+	"name": "Promptbox",
+	"version": "0.1.0",
+	"minAppVersion": "1.5.0",
+	"description": "Local-first library of AI prompts with categorization, search, and quick reuse.",
+	"author": "Stefano Ferri",
+	"authorUrl": "https://github.com/istefox/promptbox",
+	"isDesktopOnly": false
+}

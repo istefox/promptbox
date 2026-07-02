@@ -4,7 +4,7 @@ Obsidian plugin: a local-first library of AI prompts with categorization, search
 
 ## Status
 
-Bootstrap, under active development. The full planning package (specification, ADRs, tiered implementation plan) lives in [`docs/`](docs/); no plugin code has been written yet.
+Under active development, not yet released. The build toolchain and plugin skeleton are in place (Tier 0); library features arrive with the next tiers. The full planning package (specification, ADRs, tiered implementation plan) lives in [`docs/`](docs/).
 
 - [MVP specification](docs/spec.md)
 - [Community library specification (Phase 2)](docs/spec-community.md)

@@ -147,3 +147,9 @@ main.js
 data.json
 .DS_Store
 CLAUDE.md.bak-2026-07-02
+
+# Node
+node_modules/
+
+# Session-local memory buffers
+.remember/

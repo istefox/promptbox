@@ -8,6 +8,18 @@ Thanks for your interest. The project is in early development (no plugin code ye
 - Architecture decisions live in `docs/adr/`. Decisions are immutable once accepted; propose a new ADR to supersede one.
 - TypeScript `strict: true`, official Obsidian API only, no network calls in the MVP.
 
+## Development
+
+1. `npm install`, then `npm run dev` to start the esbuild watch build (esbuild rebuilds `main.js` on save).
+2. Create a scratch Obsidian vault for development (do not use your real vault).
+3. Link the plugin into the vault so Obsidian picks it up:
+   ```bash
+   ln -s "$(pwd)" "<vault>/.obsidian/plugins/promptbox"
+   ```
+   Copying `manifest.json`, `main.js`, and `styles.css` into that folder works too if you prefer not to symlink.
+4. Enable Promptbox in Settings → Community plugins. Install the community [Hot-Reload](https://github.com/pjeby/hot-reload) plugin in the dev vault to reload Promptbox automatically on every rebuild; without it, toggle the plugin off and on after each change.
+5. `npm run build` runs the typecheck plus a production bundle; `npm run lint` runs ESLint. Both must be green before a PR.
+
 ## Workflow
 
 1. Open an issue describing the bug or proposal before writing code.
