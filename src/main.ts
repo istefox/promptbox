@@ -3,6 +3,8 @@ import { mergeSettings, type PromptboxSettings } from "./settings";
 import { readPromptFromCache, stripFrontmatter } from "./storage/frontmatter";
 import { PromptIndex } from "./storage/indexer";
 import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
+import { PromptModal } from "./ui/prompt-modal";
+import { PromptboxSettingTab } from "./ui/settings-tab";
 
 export default class PromptboxPlugin extends Plugin {
 	override settings!: PromptboxSettings;
@@ -35,6 +37,28 @@ export default class PromptboxPlugin extends Plugin {
 			name: "Open library",
 			callback: () => {
 				void this.activateLibraryView();
+			},
+		});
+
+		this.addSettingTab(new PromptboxSettingTab(this.app, this));
+
+		this.addCommand({
+			id: "new-prompt",
+			name: "New prompt",
+			callback: () => this.openCreateModal(),
+		});
+		this.addCommand({
+			id: "edit-prompt-metadata",
+			name: "Edit prompt metadata",
+			checkCallback: (checking) => {
+				const file = this.app.workspace.getActiveFile();
+				const inFolder =
+					file !== null &&
+					file.extension === "md" &&
+					file.path.startsWith(this.settings.promptsFolder + "/");
+				if (checking) return inFolder;
+				if (inFolder) this.openEditModal(file.path);
+				return inFolder;
 			},
 		});
 
@@ -82,6 +106,24 @@ export default class PromptboxPlugin extends Plugin {
 			await leaf.setViewState({ type: VIEW_TYPE_LIBRARY, active: true });
 		}
 		await workspace.revealLeaf(leaf);
+	}
+
+	openCreateModal(): void {
+		new PromptModal(this.app, this.settings, this.settings.promptsFolder, { kind: "create" }).open();
+	}
+
+	openEditModal(path: string): void {
+		const file = this.app.vault.getFileByPath(path);
+		const prompt = this.index.get(path) ?? (file ? readPromptFromCache(this.app, file) : undefined);
+		if (!file || !prompt) {
+			new Notice("Promptbox: prompt not found.");
+			return;
+		}
+		new PromptModal(this.app, this.settings, this.settings.promptsFolder, {
+			kind: "edit",
+			file,
+			prompt,
+		}).open();
 	}
 
 	async saveSettings(): Promise<void> {

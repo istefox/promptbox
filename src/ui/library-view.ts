@@ -1,7 +1,9 @@
-import { ItemView, setIcon, type WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, setIcon, type WorkspaceLeaf } from "obsidian";
 import { emptyQuery, runQuery, type LibraryQuery } from "../domain/query";
 import type { Prompt } from "../domain/prompt";
 import type PromptboxPlugin from "../main";
+import { deletePrompt } from "../storage/prompt-writer";
+import { ConfirmModal } from "./confirm-modal";
 import { renderFilterBar, type FilterBarHandle, type FilterOptions } from "./filter-bar";
 
 export const VIEW_TYPE_LIBRARY = "promptbox-library";
@@ -39,7 +41,10 @@ export class PromptboxLibraryView extends ItemView {
 		root.addClass("promptbox-library");
 		const filterEl = root.createDiv();
 		this.filterBar = renderFilterBar(filterEl, this.query, this.collectOptions(), () => this.render());
-		this.countEl = root.createDiv({ cls: "promptbox-library__count" });
+		const countRow = root.createDiv({ cls: "promptbox-library__count-row" });
+		this.countEl = countRow.createDiv({ cls: "promptbox-library__count" });
+		const newBtn = countRow.createEl("button", { text: "New prompt", cls: "mod-cta" });
+		newBtn.addEventListener("click", () => this.plugin.openCreateModal());
 		this.listEl = root.createDiv({ cls: "promptbox-library__list" });
 		this.unsubscribe = this.plugin.index.onChange(() => this.render());
 		this.render();
@@ -104,6 +109,47 @@ export class PromptboxLibraryView extends ItemView {
 		if (prompt.useCase !== "") {
 			item.createDiv({ text: prompt.useCase, cls: "promptbox-item__usecase" });
 		}
+
+		const actions = item.createDiv({ cls: "promptbox-item__actions" });
+		this.addItemAction(actions, "pencil", "Edit metadata", () => this.plugin.openEditModal(prompt.path));
+		this.addItemAction(actions, "file-text", "Open as note", () => {
+			void this.openAsNote(prompt.path);
+		});
+		this.addItemAction(actions, "trash-2", "Delete", () => this.confirmDelete(prompt));
+	}
+
+	private addItemAction(container: HTMLElement, icon: string, label: string, onClick: () => void): void {
+		const btn = container.createEl("button", { cls: "promptbox-item__action clickable-icon" });
+		setIcon(btn, icon);
+		btn.setAttribute("aria-label", label);
+		btn.addEventListener("click", onClick);
+	}
+
+	private async openAsNote(path: string): Promise<void> {
+		const file = this.app.vault.getFileByPath(path);
+		if (!file) {
+			new Notice("Note not found — the index may be stale.");
+			return;
+		}
+		await this.app.workspace.getLeaf(false).openFile(file);
+	}
+
+	private confirmDelete(prompt: Prompt): void {
+		new ConfirmModal(
+			this.app,
+			"Delete prompt",
+			`Move "${prompt.title}" to the trash? The Obsidian trash preference applies.`,
+			"Delete",
+			() => {
+				const file = this.app.vault.getFileByPath(prompt.path);
+				if (!file) return;
+				void deletePrompt(this.app, file).then(
+					() => new Notice(`Deleted: ${prompt.title}`),
+					(error: unknown) =>
+						new Notice(`Promptbox: delete failed — ${error instanceof Error ? error.message : String(error)}`),
+				);
+			},
+		).open();
 	}
 
 	private collectOptions(): FilterOptions {
