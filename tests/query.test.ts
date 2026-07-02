@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizePrompt, type Prompt } from "../src/domain/prompt";
-import { emptyQuery, isQueryActive, runQuery, type LibraryQuery } from "../src/domain/query";
+import { emptyQuery, isQueryActive, rankFavoritesFirst, runQuery, type LibraryQuery, type SortKey } from "../src/domain/query";
 
 const CTX_TODAY = "2026-07-02";
 
@@ -9,10 +9,10 @@ function p(path: string, fm: Record<string, unknown>): Prompt {
 }
 
 const PROMPTS: Prompt[] = [
-	p("a.md", { title: "Alpha", type: "task", category: "dev", tags: ["code", "review"], quality: 5, use_case: "review PRs", visibility: "private", updated: "2026-06-01" }),
-	p("b.md", { title: "Beta", type: "system", category: "writing", tags: ["tone"], quality: 3, visibility: "public", updated: "2026-06-15" }),
-	p("c.md", { title: "Gamma", type: "meta-prompt", category: "dev", tags: ["code"], use_case: "meta things", visibility: "private", updated: "2026-05-20" }),
-	p("d.md", { title: "Delta", type: "task", category: "", tags: [], quality: 1, visibility: "private", updated: "2026-07-01" }),
+	p("a.md", { title: "Alpha", type: "task", category: "dev", tags: ["code", "review"], quality: 5, use_case: "review PRs", visibility: "private", updated: "2026-06-01", favorite: true }),
+	p("b.md", { title: "Beta", type: "system", category: "writing", tags: ["tone"], quality: 3, visibility: "public", updated: "2026-06-15", favorite: false }),
+	p("c.md", { title: "Gamma", type: "meta-prompt", category: "dev", tags: ["code"], use_case: "meta things", visibility: "private", updated: "2026-05-20", favorite: true }),
+	p("d.md", { title: "Delta", type: "task", category: "", tags: [], quality: 1, visibility: "private", updated: "2026-07-01", favorite: false }),
 ];
 
 const BODIES: Record<string, string> = {
@@ -64,6 +64,13 @@ describe("runQuery — filters (FR-2.2, AND combination)", () => {
 		const openEnd = runQuery(PROMPTS, getBody, q({ updatedRange: { from: "2026-06-16", to: null } }));
 		expect(openEnd.map((x) => x.title)).toEqual(["Delta"]);
 	});
+
+	it("filters by favoritesOnly, combined with an existing filter via AND (FR-9.4)", () => {
+		expect(runQuery(PROMPTS, getBody, q({ favoritesOnly: true })).map((x) => x.title)).toEqual(["Alpha", "Gamma"]);
+		expect(
+			runQuery(PROMPTS, getBody, q({ favoritesOnly: true, types: ["task"] })).map((x) => x.title),
+		).toEqual(["Alpha"]);
+	});
 });
 
 describe("runQuery — text search (FR-2.4)", () => {
@@ -96,10 +103,58 @@ describe("runQuery — sort (FR-2.5)", () => {
 	});
 });
 
+describe("runQuery — favoritesFirst (FR-9.5)", () => {
+	const cases: Array<{ sort: SortKey; expected: string[] }> = [
+		{ sort: "updated-desc", expected: ["Alpha", "Gamma", "Delta", "Beta"] },
+		{ sort: "created-desc", expected: ["Alpha", "Gamma", "Beta", "Delta"] },
+		{ sort: "title-asc", expected: ["Alpha", "Gamma", "Beta", "Delta"] },
+		{ sort: "quality-desc", expected: ["Alpha", "Gamma", "Beta", "Delta"] },
+	];
+
+	for (const { sort, expected } of cases) {
+		it(`groups favorites first while preserving ${sort} within each group`, () => {
+			const out = runQuery(PROMPTS, getBody, q({ sort, favoritesFirst: true }));
+			expect(out.map((x) => x.title)).toEqual(expected);
+		});
+	}
+});
+
 describe("isQueryActive", () => {
 	it("detects default vs active state (drives clear-all visibility)", () => {
 		expect(isQueryActive(emptyQuery())).toBe(false);
 		expect(isQueryActive(q({ text: "x" }))).toBe(true);
 		expect(isQueryActive(q({ minQuality: 2 }))).toBe(true);
+		expect(isQueryActive(q({ favoritesOnly: true }))).toBe(true);
+	});
+});
+
+describe("rankFavoritesFirst", () => {
+	it("bubbles a favorite above a non-favorite at equal score", () => {
+		const items = [
+			{ id: "non-fav", score: 1, favorite: false },
+			{ id: "fav", score: 1, favorite: true },
+		];
+		const out = rankFavoritesFirst(items, (x) => x.score, (x) => x.favorite);
+		expect(out.map((x) => x.id)).toEqual(["fav", "non-fav"]);
+	});
+
+	it("does not let a favorite jump above a higher-scoring non-favorite", () => {
+		const items = [
+			{ id: "better-non-fav", score: 2, favorite: false },
+			{ id: "worse-fav", score: 1, favorite: true },
+		];
+		const out = rankFavoritesFirst(items, (x) => x.score, (x) => x.favorite);
+		expect(out.map((x) => x.id)).toEqual(["better-non-fav", "worse-fav"]);
+	});
+
+	it("keeps multiple ties stable in original order", () => {
+		const items = [
+			{ id: "a", score: 1, favorite: false },
+			{ id: "b", score: 1, favorite: false },
+			{ id: "c", score: 1, favorite: true },
+			{ id: "d", score: 1, favorite: true },
+		];
+		const out = rankFavoritesFirst(items, (x) => x.score, (x) => x.favorite);
+		expect(out.map((x) => x.id)).toEqual(["c", "d", "a", "b"]);
 	});
 });

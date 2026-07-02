@@ -43,3 +43,13 @@ export async function updatePrompt(app: App, file: TFile, draft: PromptDraft): P
 export async function deletePrompt(app: App, file: TFile): Promise<void> {
 	await app.fileManager.trashFile(file);
 }
+
+/** Explicit-toggle write (FR-9.1): unset is represented by the key's
+ * absence, matching draftToFrontmatter's "omit empty optionals" convention,
+ * so an unfavorited note stays exactly as minimal as before this feature. */
+export async function setFavorite(app: App, file: TFile, value: boolean): Promise<void> {
+	await app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+		if (value) fm["favorite"] = true;
+		else delete fm["favorite"];
+	});
+}

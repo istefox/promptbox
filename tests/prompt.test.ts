@@ -110,3 +110,37 @@ describe("normalizePrompt — tolerance (NFR-8, never throws)", () => {
 		});
 	});
 });
+
+describe("favorite (FR-9.1)", () => {
+	it("parses true and leaves warnings untouched", () => {
+		const p = normalizePrompt({ title: "t", favorite: true }, CTX);
+		const baseline = normalizePrompt({ title: "t" }, CTX);
+		expect(p.favorite).toBe(true);
+		expect(p.warnings).toEqual(baseline.warnings);
+	});
+
+	it("defaults to false when absent, without affecting warnings", () => {
+		const withoutField = normalizePrompt({ title: "t" }, CTX);
+		const baseline = normalizePrompt({ title: "t" }, CTX);
+		expect(withoutField.favorite).toBe(false);
+		expect(withoutField.warnings).toEqual(baseline.warnings);
+	});
+
+	it("treats a malformed value as false with a warning-free render (acceptance criterion)", () => {
+		const malformed = normalizePrompt({ title: "t", favorite: "yes please" }, CTX);
+		const baseline = normalizePrompt({ title: "t" }, CTX);
+		expect(malformed.favorite).toBe(false);
+		expect(malformed.warnings).toEqual(baseline.warnings);
+	});
+
+	it("rejects every non-true value as false", () => {
+		for (const value of [1, 0, null, [], {}, "true", undefined]) {
+			expect(normalizePrompt({ favorite: value }, CTX).favorite).toBe(false);
+		}
+	});
+
+	it("never leaks into custom", () => {
+		const p = normalizePrompt({ title: "t", favorite: true }, CTX);
+		expect(p.custom).toEqual({});
+	});
+});
