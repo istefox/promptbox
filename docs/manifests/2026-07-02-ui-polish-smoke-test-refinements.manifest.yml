@@ -1,13 +1,13 @@
 manifest_schema_version: "1.3"
-topic: "tier-5-import-and-export-json"
-topic_full_title: "Tier 5 import and export JSON"
+topic: "ui-polish-smoke-test-refinements"
+topic_full_title: "UI polish and smoke-test refinements"
 project_root: "/Users/stefer/developer/Promptbox"
 mode: "greenfield"
 anonymize: true
 humanize: true
 chain_path: "express"
-created_at: "2026-07-02T18:25:40+00:00"
-last_updated_at: "2026-07-02T18:31:55+00:00"
+created_at: "2026-07-02T20:27:11+00:00"
+last_updated_at: "2026-07-02T22:22:37+00:00"
 current_step: "completed"
 status: "completed"
 
@@ -15,7 +15,7 @@ status: "completed"
 gate0:
   decision: null
   chain_path: "express"
-  auto_detect_reason: "conductor autopilot; express per prior tiers"
+  auto_detect_reason: "explicit:express (user-approved polish cycle, backlog in .claude/ui-polish-backlog.md)"
   criteria_spec_adr_exist: false
   decided_at: null
 
@@ -26,7 +26,7 @@ test_cmd_provisional: false
 coder_model: null
 
 # Autopilot mode (project-conductor): all HITL gates auto-select safe defaults
-autopilot: true
+autopilot: false
 
 # Dynamic Workflows Step 5 tracking (ADR-0016) — default false; smoke test flips it true per environment
 hook_verified: false
@@ -88,4 +88,4 @@ failure:
   partial_artifacts: []
 
 # Hint for next action (UX)
-next_action: "Run /skill concept-to-code tier-5-import-and-export-json to start Step 1 interview"
+next_action: "Run /skill concept-to-code ui-polish-smoke-test-refinements to start Step 1 interview"

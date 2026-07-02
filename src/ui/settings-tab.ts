@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting, type App } from "obsidian";
+import { PluginSettingTab, setIcon, Setting, type App } from "obsidian";
 import type PromptboxPlugin from "../main";
 import { FolderSuggest } from "./suggest";
 
@@ -13,12 +13,19 @@ export class PromptboxSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
+	private iconRow(icon: string, name: string): Setting {
+		const row = new Setting(this.containerEl).setName(name);
+		const iconEl = createSpan({ cls: "promptbox-field-icon" });
+		setIcon(iconEl, icon);
+		row.nameEl.prepend(iconEl);
+		return row;
+	}
+
 	override display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		new Setting(containerEl)
-			.setName("Prompts folder")
+		this.iconRow("folder", "Prompts folder")
 			.setDesc("Vault folder holding prompt notes, subfolders included. Changing it re-indexes immediately.")
 			.addText((t) => {
 				t.setValue(this.plugin.settings.promptsFolder);
@@ -31,9 +38,7 @@ export class PromptboxSettingTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(containerEl)
-			.setName("Default type for new prompts")
-			.addDropdown((d) => {
+		this.iconRow("shapes", "Default type for new prompts").addDropdown((d) => {
 				for (const v of this.plugin.settings.typeValues) d.addOption(v, v);
 				d.setValue(this.plugin.settings.defaultType).onChange((v) => {
 					this.plugin.settings.defaultType = v;
@@ -41,25 +46,23 @@ export class PromptboxSettingTab extends PluginSettingTab {
 				});
 			});
 
-		this.renderTaxonomyEditor("Type values", "typeValues");
-		this.renderTaxonomyEditor("Category values", "categoryValues");
+		this.renderTaxonomyEditor("list", "Type values", "typeValues", true);
+		this.renderTaxonomyEditor("list-tree", "Category values", "categoryValues", false);
 
-		new Setting(containerEl)
-			.setName("Hotkeys")
+		this.iconRow("keyboard", "Hotkeys")
 			.setDesc("Promptbox commands ship without default key bindings. Assign them under Settings → Hotkeys.");
 	}
 
 	/** FR-8.2: add, rename, remove, reorder. Removing a value in use never modifies notes. */
-	private renderTaxonomyEditor(title: string, key: "typeValues" | "categoryValues"): void {
+	private renderTaxonomyEditor(icon: string, title: string, key: "typeValues" | "categoryValues", withDesc: boolean): void {
 		const { containerEl } = this;
-		new Setting(containerEl)
-			.setName(title)
-			.setDesc("Values feed the modal dropdowns and view filters. Removing a value in use never modifies existing notes.")
-			.setHeading();
+		const heading = this.iconRow(icon, title).setHeading();
+		if (withDesc) heading.setDesc("Values feed the modal dropdowns and view filters. Removing a value in use never modifies existing notes. Same rules apply to categories below.");
 
 		const values = this.plugin.settings[key];
 		values.forEach((value, i) => {
 			const row = new Setting(containerEl);
+			row.setClass("promptbox-taxo-row");
 			row.addText((t) => {
 				t.setValue(value).onChange((v) => {
 					const trimmed = v.trim();
@@ -105,6 +108,7 @@ export class PromptboxSettingTab extends PluginSettingTab {
 
 		let pending = "";
 		new Setting(containerEl)
+			.setClass("promptbox-taxo-row")
 			.addText((t) => {
 				t.setPlaceholder(`Add ${key === "typeValues" ? "type" : "category"}...`);
 				t.onChange((v) => (pending = v));

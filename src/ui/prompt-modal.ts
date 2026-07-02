@@ -1,11 +1,20 @@
-import { Modal, Notice, Setting, type App, type TFile } from "obsidian";
+import { Modal, Notice, setIcon, Setting, type App, type TFile } from "obsidian";
 import { bumpVersion, type PromptDraft } from "../domain/draft";
 import { VISIBILITIES, type Prompt, type Visibility } from "../domain/prompt";
 import type { PromptboxSettings } from "../settings";
 import { createPrompt, updatePrompt } from "../storage/prompt-writer";
-import { collectVaultTags, TagSuggest } from "./suggest";
+import { TagSuggest } from "./suggest";
 
 export type PromptModalMode = { kind: "create" } | { kind: "edit"; file: TFile; prompt: Prompt };
+
+export interface PromptModalDeps {
+	settings: PromptboxSettings;
+	folder: string;
+	/** Tag pool for suggestions: prompt-library tags first, vault-wide after (backlog 8). */
+	tagPool: string[];
+	persistSettings: () => Promise<void>;
+	openFile?: (file: TFile) => void;
+}
 
 function draftFrom(mode: PromptModalMode, settings: PromptboxSettings): PromptDraft {
 	if (mode.kind === "edit") {
@@ -40,29 +49,39 @@ function dropdownValues(configured: string[], current: string): string[] {
 	return current !== "" && !configured.includes(current) ? [...configured, current] : configured;
 }
 
+const NEW_VALUE = "__promptbox_new__";
+
 /** Create / edit metadata modal (FR-3.1, FR-3.2). Body editing stays in the editor (FR-3.3). */
 export class PromptModal extends Modal {
 	private readonly draft: PromptDraft;
 	private titleInput: HTMLInputElement | null = null;
+	/** Which taxonomy field is showing its inline "new value" row (backlog 13). */
+	private addingValueFor: "type" | "category" | null = null;
 
 	constructor(
 		app: App,
-		private readonly settings: PromptboxSettings,
-		private readonly folder: string,
+		private readonly deps: PromptModalDeps,
 		private readonly mode: PromptModalMode,
 		private readonly onSaved?: (file: TFile) => void,
 	) {
 		super(app);
-		this.draft = draftFrom(mode, settings);
+		this.draft = draftFrom(mode, deps.settings);
 	}
 
 	override onOpen(): void {
+		this.modalEl.addClass("promptbox-modal--wide");
+		this.display();
+	}
+
+	/** Rebuilds the form; all state lives in the draft, so re-rendering is loss-free. */
+	private display(): void {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass("promptbox-modal");
 		this.setTitle(this.mode.kind === "create" ? "New prompt" : "Edit prompt metadata");
 
-		new Setting(contentEl).setName("Title").addText((t) => {
+		const titleRow = this.fieldRow("heading", "Title").setDesc("Required. The file name derives from it.");
+		titleRow.addText((t) => {
 			this.titleInput = t.inputEl;
 			t.setValue(this.draft.title).onChange((v) => {
 				this.draft.title = v;
@@ -70,25 +89,23 @@ export class PromptModal extends Modal {
 			});
 		});
 
-		new Setting(contentEl).setName("Type").addDropdown((d) => {
-			for (const v of dropdownValues(this.settings.typeValues, this.draft.type)) d.addOption(v, v);
-			d.setValue(this.draft.type).onChange((v) => (this.draft.type = v));
-		});
+		this.taxonomyRow("shapes", "Type", "type", this.deps.settings.typeValues, false);
+		this.taxonomyRow("folder", "Category", "category", this.deps.settings.categoryValues, true);
 
-		new Setting(contentEl).setName("Category").addDropdown((d) => {
-			d.addOption("", "(none)");
-			for (const v of dropdownValues(this.settings.categoryValues, this.draft.category)) d.addOption(v, v);
-			d.setValue(this.draft.category).onChange((v) => (this.draft.category = v));
-		});
-
-		// Tags: chips + input with vault-wide suggestions (FR-3.4)
-		const tagsSetting = new Setting(contentEl).setName("Tags");
-		const chipsEl = tagsSetting.controlEl.createDiv({ cls: "promptbox-modal__chips" });
+		// Tags: chips inside a visible container + input with suggestions (FR-3.4)
+		const tagsRow = this.fieldRow("tags", "Tags");
+		const box = tagsRow.controlEl.createDiv({ cls: "promptbox-tags-box" });
+		const chipsEl = box.createDiv({ cls: "promptbox-modal__chips" });
 		const renderChips = () => {
 			chipsEl.empty();
+			if (this.draft.tags.length === 0) {
+				chipsEl.createSpan({ text: "No tags yet", cls: "promptbox-tags-box__empty" });
+				return;
+			}
 			for (const tag of this.draft.tags) {
 				const chip = chipsEl.createSpan({ text: tag, cls: "promptbox-chip is-active" });
 				const remove = chip.createSpan({ text: "×", cls: "promptbox-chip__remove" });
+				remove.setAttribute("aria-label", `Remove ${tag}`);
 				remove.addEventListener("click", () => {
 					this.draft.tags = this.draft.tags.filter((t) => t !== tag);
 					renderChips();
@@ -96,28 +113,25 @@ export class PromptModal extends Modal {
 			}
 		};
 		renderChips();
-		const vaultTags = collectVaultTags(this.app);
-		tagsSetting.addText((t) => {
-			t.setPlaceholder("Add tag, press Enter");
-			new TagSuggest(this.app, t.inputEl, () => vaultTags.filter((v) => !this.draft.tags.includes(v)));
-			const commit = () => {
-				const value = t.inputEl.value.trim().replace(/^#/, "");
-				if (value !== "" && !this.draft.tags.includes(value)) {
-					this.draft.tags.push(value);
-					renderChips();
-				}
-				t.setValue("");
-			};
-			t.inputEl.addEventListener("keydown", (e) => {
-				if (e.key === "Enter" || e.key === ",") {
-					e.preventDefault();
-					commit();
-				}
-			});
-			t.inputEl.addEventListener("blur", commit);
+		const input = box.createEl("input", { type: "text", placeholder: "Add tag, press Enter" });
+		new TagSuggest(this.app, input, () => this.deps.tagPool.filter((v) => !this.draft.tags.includes(v)));
+		const commit = () => {
+			const value = input.value.trim().replace(/^#/, "");
+			if (value !== "" && !this.draft.tags.includes(value)) {
+				this.draft.tags.push(value);
+				renderChips();
+			}
+			input.value = "";
+		};
+		input.addEventListener("keydown", (e) => {
+			if (e.key === "Enter" || e.key === ",") {
+				e.preventDefault();
+				commit();
+			}
 		});
+		input.addEventListener("blur", commit);
 
-		new Setting(contentEl).setName("Quality").addDropdown((d) => {
+		this.fieldRow("star", "Quality").addDropdown((d) => {
 			d.addOption("", "(unset)");
 			for (let n = 1; n <= 5; n++) d.addOption(String(n), "★".repeat(n));
 			d.setValue(this.draft.quality === undefined ? "" : String(this.draft.quality)).onChange(
@@ -125,20 +139,24 @@ export class PromptModal extends Modal {
 			);
 		});
 
-		new Setting(contentEl).setName("Use case").addText((t) => {
-			t.setValue(this.draft.useCase).onChange((v) => (this.draft.useCase = v));
-		});
+		this.fieldRow("info", "Use case")
+			.setDesc("One line on when to reach for this prompt.")
+			.addText((t) => {
+				t.setValue(this.draft.useCase).onChange((v) => (this.draft.useCase = v));
+			});
 
-		new Setting(contentEl).setName("Visibility").addDropdown((d) => {
-			for (const v of VISIBILITIES) d.addOption(v, v);
-			d.setValue(this.draft.visibility).onChange((v) => (this.draft.visibility = v as Visibility));
-		});
+		this.fieldRow("eye", "Visibility")
+			.setDesc("Private stays local. Public is reserved for the phase 2 shared library.")
+			.addDropdown((d) => {
+				for (const v of VISIBILITIES) d.addOption(v, v);
+				d.setValue(this.draft.visibility).onChange((v) => (this.draft.visibility = v as Visibility));
+			});
 
-		const versionSetting = new Setting(contentEl).setName("Version");
-		versionSetting.addText((t) => {
+		const versionRow = this.fieldRow("hash", "Version").setDesc("Manually managed.");
+		versionRow.addText((t) => {
 			t.setValue(this.draft.version).onChange((v) => (this.draft.version = v));
 			if (this.mode.kind === "edit") {
-				versionSetting.addButton((b) =>
+				versionRow.addButton((b) =>
 					b.setButtonText("Bump").onClick(() => {
 						const bump = bumpVersion(this.draft.version);
 						if (!bump.bumped) {
@@ -153,11 +171,22 @@ export class PromptModal extends Modal {
 		});
 
 		if (this.mode.kind === "create") {
-			new Setting(contentEl).setName("Initial body").addTextArea((t) => {
-				t.setPlaceholder("Prompt text (editable later as a normal note)");
-				t.inputEl.rows = 6;
-				t.onChange((v) => (this.draft.body = v));
+			const bodyRow = this.fieldRow("file-text", "Initial body");
+			bodyRow.setClass("promptbox-setting--stacked");
+			bodyRow.addTextArea((t) => {
+				t.setPlaceholder("Prompt text. Placeholders: {{name}}, {{name|default}}, {{name|a,b,c|hint}}.");
+				t.inputEl.rows = 10;
+				t.setValue(this.draft.body).onChange((v) => (this.draft.body = v));
 			});
+		} else {
+			this.fieldRow("file-text", "Body")
+				.setDesc("The prompt text lives in the note and is edited with the full Obsidian editor (FR-3.3).")
+				.addButton((b) =>
+					b.setButtonText("Open note to edit body").onClick(() => {
+						if (this.mode.kind === "edit") this.deps.openFile?.(this.mode.file);
+						this.close();
+					}),
+				);
 		}
 
 		new Setting(contentEl)
@@ -170,6 +199,72 @@ export class PromptModal extends Modal {
 			.addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()));
 	}
 
+	/** Setting row with a leading minimal Lucide icon (backlog 14). */
+	private fieldRow(icon: string, name: string): Setting {
+		const row = new Setting(this.contentEl).setName(name);
+		const iconEl = createSpan({ cls: "promptbox-field-icon" });
+		setIcon(iconEl, icon);
+		row.nameEl.prepend(iconEl);
+		return row;
+	}
+
+	/** Taxonomy dropdown with an inline "New value..." entry persisting to settings (backlog 13). */
+	private taxonomyRow(
+		icon: string,
+		label: string,
+		key: "type" | "category",
+		configured: string[],
+		optional: boolean,
+	): void {
+		const row = this.fieldRow(icon, label);
+		row.addDropdown((d) => {
+			if (optional) d.addOption("", "(none)");
+			for (const v of dropdownValues(configured, this.draft[key])) d.addOption(v, v);
+			d.addOption(NEW_VALUE, `New ${key}...`);
+			d.setValue(this.draft[key]).onChange((v) => {
+				if (v === NEW_VALUE) {
+					this.addingValueFor = key;
+					this.display();
+					return;
+				}
+				this.draft[key] = v;
+			});
+		});
+
+		if (this.addingValueFor !== key) return;
+		let pending = "";
+		new Setting(this.contentEl)
+			.setClass("promptbox-inline-add")
+			.addText((t) => {
+				t.setPlaceholder(`New ${key} name...`);
+				t.onChange((v) => (pending = v));
+				window.setTimeout(() => t.inputEl.focus(), 0);
+			})
+			.addButton((b) =>
+				b
+					.setButtonText("Add")
+					.setCta()
+					.onClick(() => {
+						const value = pending.trim();
+						if (value === "") return;
+						const list = key === "type" ? this.deps.settings.typeValues : this.deps.settings.categoryValues;
+						if (!list.includes(value)) {
+							list.push(value);
+							void this.deps.persistSettings();
+						}
+						this.draft[key] = value;
+						this.addingValueFor = null;
+						this.display();
+					}),
+			)
+			.addButton((b) =>
+				b.setButtonText("Cancel").onClick(() => {
+					this.addingValueFor = null;
+					this.display();
+				}),
+			);
+	}
+
 	private async submit(): Promise<void> {
 		if (this.draft.title.trim() === "") {
 			this.titleInput?.addClass("promptbox-invalid");
@@ -178,7 +273,7 @@ export class PromptModal extends Modal {
 		}
 		try {
 			if (this.mode.kind === "create") {
-				const file = await createPrompt(this.app, this.folder, this.draft);
+				const file = await createPrompt(this.app, this.deps.folder, this.draft);
 				new Notice(`Prompt created: ${file.basename}`);
 				this.onSaved?.(file);
 			} else {

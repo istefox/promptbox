@@ -2,6 +2,8 @@ export interface PromptVariable {
 	name: string;
 	defaultValue: string;
 	hint: string;
+	/** Present when the default segment lists 2+ comma-separated values: rendered as a dropdown. */
+	options?: string[];
 }
 
 // Innermost {{...}} with no braces inside; nested or unclosed constructs never match (FR-4.6).
@@ -12,7 +14,16 @@ function parseSegments(content: string): PromptVariable | null {
 	if (segments.length > 3) return null;
 	const name = (segments[0] ?? "").trim();
 	if (name === "") return null;
-	return { name, defaultValue: segments[1] ?? "", hint: segments[2] ?? "" };
+	const defaultRaw = segments[1] ?? "";
+	const hint = segments[2] ?? "";
+	// Choice list: 2+ comma-separated non-empty values become dropdown options,
+	// first one preselected. A single default therefore cannot contain a literal
+	// comma (documented trade-off in spec.md FR-4.1).
+	const parts = defaultRaw.split(",").map((p) => p.trim());
+	if (parts.length >= 2 && parts.every((p) => p !== "")) {
+		return { name, defaultValue: parts[0]!, hint, options: parts };
+	}
+	return { name, defaultValue: defaultRaw, hint };
 }
 
 /**

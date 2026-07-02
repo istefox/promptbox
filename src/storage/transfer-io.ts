@@ -10,6 +10,45 @@ export interface ImportSummary {
 	errors: string[];
 }
 
+interface SaveFileHandle {
+	name: string;
+	createWritable(): Promise<{ write(data: string): Promise<void>; close(): Promise<void> }>;
+}
+type SaveFilePicker = (options: {
+	suggestedName?: string;
+	types?: { description: string; accept: Record<string, string[]> }[];
+}) => Promise<SaveFileHandle>;
+
+export type ExportDestination =
+	| { kind: "picker"; name: string }
+	| { kind: "vault"; path: string }
+	| { kind: "cancelled" };
+
+/**
+ * Classic OS save dialog via the standard File System Access API when the
+ * runtime provides it (desktop); vault-root file otherwise (mobile). FR-7.1
+ * does not pin a destination.
+ */
+export async function exportWithDialog(app: App, doc: ExportDoc): Promise<ExportDestination> {
+	const picker = (window as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
+	if (picker) {
+		try {
+			const handle = await picker({
+				suggestedName: `promptbox-export-${doc.exported_at.slice(0, 10) || "backup"}.json`,
+				types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
+			});
+			const writable = await handle.createWritable();
+			await writable.write(JSON.stringify(doc, null, 2));
+			await writable.close();
+			return { kind: "picker", name: handle.name };
+		} catch (error) {
+			if (error instanceof DOMException && error.name === "AbortError") return { kind: "cancelled" };
+		}
+	}
+	const file = await exportToVaultFile(app, doc);
+	return { kind: "vault", path: file.path };
+}
+
 /** Writes the export document to a collision-safe JSON file in the vault root (FR-7.1). */
 export async function exportToVaultFile(app: App, doc: ExportDoc): Promise<TFile> {
 	const base = `promptbox-export-${doc.exported_at.slice(0, 10) || "backup"}`;

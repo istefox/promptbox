@@ -23,9 +23,16 @@ export class VariableModal extends Modal {
 		for (const variable of this.variables) {
 			const row = new Setting(contentEl).setName(variable.name);
 			if (variable.hint !== "") row.setDesc(variable.hint.trim());
-			row.addText((t) => {
-				t.setValue(variable.defaultValue).onChange((v) => (this.values[variable.name] = v));
-			});
+			if (variable.options) {
+				row.addDropdown((d) => {
+					for (const option of variable.options!) d.addOption(option, option);
+					d.setValue(variable.defaultValue).onChange((v) => (this.values[variable.name] = v));
+				});
+			} else {
+				row.addText((t) => {
+					t.setValue(variable.defaultValue).onChange((v) => (this.values[variable.name] = v));
+				});
+			}
 		}
 
 		contentEl.addEventListener("keydown", (e) => {
