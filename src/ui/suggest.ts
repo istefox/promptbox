@@ -38,6 +38,34 @@ export function collectVaultTags(app: App): string[] {
 	return [...tags].sort((a, b) => a.localeCompare(b));
 }
 
+export class JsonFileSuggest extends AbstractInputSuggest<string> {
+	constructor(
+		app: App,
+		private readonly input: HTMLInputElement,
+	) {
+		super(app, input);
+	}
+
+	getSuggestions(query: string): string[] {
+		const q = query.toLowerCase();
+		return this.app.vault
+			.getFiles()
+			.map((f) => f.path)
+			.filter((p) => p.endsWith(".json") && p.toLowerCase().includes(q))
+			.slice(0, 20);
+	}
+
+	override renderSuggestion(path: string, el: HTMLElement): void {
+		el.setText(path);
+	}
+
+	override selectSuggestion(path: string): void {
+		this.input.value = path;
+		this.input.trigger("input");
+		this.close();
+	}
+}
+
 export class TagSuggest extends AbstractInputSuggest<string> {
 	constructor(
 		app: App,
