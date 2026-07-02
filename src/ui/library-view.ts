@@ -4,6 +4,7 @@ import type { Prompt } from "../domain/prompt";
 import type PromptboxPlugin from "../main";
 import { deletePrompt } from "../storage/prompt-writer";
 import { ConfirmModal } from "./confirm-modal";
+import { copyRaw, copyWithVariables } from "./copy";
 import { renderFilterBar, type FilterBarHandle, type FilterOptions } from "./filter-bar";
 
 export const VIEW_TYPE_LIBRARY = "promptbox-library";
@@ -111,6 +112,12 @@ export class PromptboxLibraryView extends ItemView {
 		}
 
 		const actions = item.createDiv({ cls: "promptbox-item__actions" });
+		this.addItemAction(actions, "copy", "Copy with variables", () =>
+			copyWithVariables(this.app, prompt.title, this.plugin.index.getBody(prompt.path)),
+		);
+		this.addItemAction(actions, "clipboard-copy", "Copy raw", () =>
+			copyRaw(prompt.title, this.plugin.index.getBody(prompt.path)),
+		);
 		this.addItemAction(actions, "pencil", "Edit metadata", () => this.plugin.openEditModal(prompt.path));
 		this.addItemAction(actions, "file-text", "Open as note", () => {
 			void this.openAsNote(prompt.path);
