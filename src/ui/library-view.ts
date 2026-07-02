@@ -46,6 +46,11 @@ export class PromptboxLibraryView extends ItemView {
 		this.countEl = countRow.createDiv({ cls: "promptbox-library__count" });
 		const newBtn = countRow.createEl("button", { text: "New prompt", cls: "mod-cta" });
 		newBtn.addEventListener("click", () => this.plugin.openCreateModal());
+		const exportBtn = countRow.createEl("button", { text: "Export filtered" });
+		exportBtn.addEventListener("click", () => {
+			const index = this.plugin.index;
+			void this.plugin.exportPrompts(runQuery(index.getAll(), (p) => index.getBody(p), this.query));
+		});
 		this.listEl = root.createDiv({ cls: "promptbox-library__list" });
 		this.unsubscribe = this.plugin.index.onChange(() => this.render());
 		this.render();

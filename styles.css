@@ -212,3 +212,15 @@
 .is-mobile .promptbox-library__count-row .mod-cta {
 	min-height: 44px;
 }
+
+.promptbox-import__errors {
+	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
+	overflow-wrap: anywhere;
+	max-height: 12em;
+	overflow-y: auto;
+}
+
+.is-mobile .promptbox-library__count-row button {
+	min-height: 44px;
+}

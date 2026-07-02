@@ -10,7 +10,7 @@ Obsidian plugin: local-first library of AI prompts with categorization, search, 
 - [x] Tier 1 domain model and storage layer  (completed: 2026-07-02)
 - [x] Tier 2 library view read-only  (completed: 2026-07-02)
 - [x] Tier 3 create edit delete  (completed: 2026-07-02)
-- [ ] Tier 4 reuse engine variables clipboard picker
+- [x] Tier 4 reuse engine variables clipboard picker  (completed: 2026-07-02)
 - [ ] Tier 5 import and export JSON
 - [ ] Tier 6 hardening performance resilience
 - [ ] Tier 7 release and store submission

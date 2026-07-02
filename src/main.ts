@@ -5,6 +5,10 @@ import { PromptIndex } from "./storage/indexer";
 import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
 import { PromptModal } from "./ui/prompt-modal";
 import { PromptQuickPicker } from "./ui/quick-picker";
+import { ImportModal } from "./ui/import-modal";
+import { buildExport } from "./domain/transfer";
+import { exportToVaultFile } from "./storage/transfer-io";
+import type { Prompt } from "./domain/prompt";
 import { PromptboxSettingTab } from "./ui/settings-tab";
 
 export default class PromptboxPlugin extends Plugin {
@@ -73,6 +77,16 @@ export default class PromptboxPlugin extends Plugin {
 			name: "Copy prompt (raw)",
 			callback: () => new PromptQuickPicker(this.app, this, true).open(),
 		});
+		this.addCommand({
+			id: "export-json",
+			name: "Export prompts (JSON)",
+			callback: () => void this.exportPrompts(this.index.getAll()),
+		});
+		this.addCommand({
+			id: "import-json",
+			name: "Import prompts (JSON)",
+			callback: () => new ImportModal(this.app, this).open(),
+		});
 
 		// Deferred start: no vault I/O before the layout is ready (NFR-2).
 		this.app.workspace.onLayoutReady(() => {
@@ -108,6 +122,26 @@ export default class PromptboxPlugin extends Plugin {
 			await leaf.setViewState({ type: VIEW_TYPE_LIBRARY, active: true });
 		}
 		await workspace.revealLeaf(leaf);
+	}
+
+	/** FR-7.1: exports all prompts, or the filtered set when launched from the view. */
+	async exportPrompts(prompts: Prompt[]): Promise<void> {
+		if (prompts.length === 0) {
+			new Notice("Promptbox: nothing to export.");
+			return;
+		}
+		const doc = buildExport(
+			prompts,
+			(path) => this.index.getBody(path),
+			this.settings.promptsFolder,
+			new Date().toISOString(),
+		);
+		try {
+			const file = await exportToVaultFile(this.app, doc);
+			new Notice(`Exported ${prompts.length} prompt(s) to ${file.path}`);
+		} catch (error) {
+			new Notice(`Promptbox: export failed — ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	openCreateModal(): void {
