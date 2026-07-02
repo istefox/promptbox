@@ -36,3 +36,16 @@ npm run lint     # eslint
 - Performance target is ~1,000 prompts; list virtualization is deferred until NFR-1 measurements demand it.
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
+
+## Decisions from the context-variables chain (ADR-0005)
+
+Context variables: reserved `{{@selection}}` `{{@title}}` `{{@date}}` `{{@clipboard}}` resolved at copy time.
+
+Key architectural decisions:
+- **Single parse, partition then merge:** one `parsePlaceholders` pass; context and user values merge into one resolution — never substitute-then-reparse (resolved text containing `{{...}}` must not re-parse).
+- **Pure classification, impure resolution:** `isContextVariable` lives in `src/domain/placeholders.ts` (vitest-covered); resolution lives in `src/ui/context-variables.ts`.
+- **Signature-stable entry points:** `copyWithVariables` keeps its exported signature, so both copy entry points gain the feature with zero call-site edits (FR-10.5).
+- **Asymmetric empties:** empty selection = unresolved (Notice); read-but-empty clipboard = resolved (no Notice).
+- **Reserved namespace:** bare `@` placeholder names are permanently reserved by FR-10.
+
+Detail: `docs/adr/0005-context-variables.md`.
