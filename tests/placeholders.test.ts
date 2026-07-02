@@ -34,6 +34,29 @@ describe("parsePlaceholders (FR-4.1, FR-4.2)", () => {
 		expect(parsePlaceholders("{{a{{b}}}}").map((v) => v.name)).toEqual(["b"]);
 	});
 
+	it("parses a comma-separated default as dropdown options, first preselected", () => {
+		expect(parsePlaceholders("{{tone|formale,informale,tecnico|Registro}}")).toEqual([
+			{ name: "tone", defaultValue: "formale", hint: "Registro", options: ["formale", "informale", "tecnico"] },
+		]);
+		expect(parsePlaceholders("{{x|a, b , c}}")[0]?.options).toEqual(["a", "b", "c"]);
+	});
+
+	it("keeps non-list defaults verbatim: trailing or empty comma segments are not options", () => {
+		expect(parsePlaceholders("{{x|a,}}")[0]).toEqual({ name: "x", defaultValue: "a,", hint: "" });
+		expect(parsePlaceholders("{{x|,}}")[0]).toEqual({ name: "x", defaultValue: ",", hint: "" });
+		expect(parsePlaceholders("{{x|solo}}")[0]?.options).toBeUndefined();
+	});
+
+	it("first occurrence wins between options and plain declarations", () => {
+		const vars = parsePlaceholders("{{t|a,b}} {{t|later}}");
+		expect(vars).toHaveLength(1);
+		expect(vars[0]?.options).toEqual(["a", "b"]);
+	});
+
+	it("resolves option placeholders like any other value", () => {
+		expect(resolvePlaceholders("Say {{t|a,b}}!", { t: "b" })).toBe("Say b!");
+	});
+
 	it("trims the name but preserves default and hint verbatim", () => {
 		expect(parsePlaceholders("{{ name | keep spaces | hint }}")).toEqual([
 			{ name: "name", defaultValue: " keep spaces ", hint: " hint " },

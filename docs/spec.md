@@ -100,6 +100,7 @@ Priorities per MoSCoW: MUST (MVP gate), SHOULD (include if no schedule risk), CO
   - `{{name}}`: empty input field
   - `{{name|default}}`: input prefilled with the default value
   - `{{name|default|hint}}`: prefilled input plus help text under the field (empty default allowed: `{{name||hint}}`)
+  - `{{name|option1,option2,...}}`: a default segment with two or more comma-separated values renders a dropdown instead of a free input, with the first option preselected. This means a single default value cannot contain a literal comma.
 - FR-4.2 On copy, the plugin parses the body, collects unique variable names in order of first appearance, and shows a single form modal with one field per variable. Repeated occurrences of the same name are asked once and replaced everywhere. If the same name declares different defaults or hints, the first occurrence wins.
 - FR-4.3 On confirm, the resolved body (frontmatter stripped) is written to the clipboard and a confirmation notice appears. Cancel copies nothing.
 - FR-4.4 Prompts with no placeholders are copied immediately, without a modal.
