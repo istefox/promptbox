@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePlaceholders, resolvePlaceholders } from "../src/domain/placeholders";
+import { isContextVariable, parsePlaceholders, resolvePlaceholders } from "../src/domain/placeholders";
 
 describe("parsePlaceholders (FR-4.1, FR-4.2)", () => {
 	it("parses the three syntax forms", () => {
@@ -81,5 +81,31 @@ describe("resolvePlaceholders (FR-4.2, FR-4.6)", () => {
 	it("keeps raw bodies for other templating systems intact when no values are provided", () => {
 		const jinja = "{% for x in items %}{{ x }}{% endfor %}";
 		expect(resolvePlaceholders(jinja, {})).toBe(jinja);
+	});
+});
+
+describe("isContextVariable (FR-10.1)", () => {
+	it("recognizes the four supported reserved names", () => {
+		expect(isContextVariable("@selection")).toBe(true);
+		expect(isContextVariable("@title")).toBe(true);
+		expect(isContextVariable("@date")).toBe(true);
+		expect(isContextVariable("@clipboard")).toBe(true);
+	});
+
+	it("rejects ordinary names", () => {
+		expect(isContextVariable("selection")).toBe(false);
+		expect(isContextVariable("")).toBe(false);
+		expect(isContextVariable("client")).toBe(false);
+	});
+
+	it("reserves the whole @ namespace, not just the four known names", () => {
+		expect(isContextVariable("@")).toBe(true);
+		expect(isContextVariable("@unknown")).toBe(true);
+	});
+
+	it("stays agnostic of @: the parser still returns @-names unchanged, ignoring is the caller's job", () => {
+		expect(parsePlaceholders("{{@title|fallback|hint}}")).toEqual([
+			{ name: "@title", defaultValue: "fallback", hint: "hint" },
+		]);
 	});
 });
