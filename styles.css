@@ -161,3 +161,54 @@
 	margin-left: 0;
 	width: 100%;
 }
+
+/* Item actions (FR-2.6) */
+.promptbox-item__actions {
+	display: flex;
+	gap: var(--size-2-2);
+	margin-top: var(--size-2-2);
+	justify-content: flex-end;
+}
+
+.promptbox-item__action {
+	color: var(--text-muted);
+}
+
+.promptbox-item__action:hover {
+	color: var(--text-normal);
+}
+
+/* Create / edit modal */
+.promptbox-modal__chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-2-2);
+	margin-bottom: var(--size-2-2);
+}
+
+.promptbox-chip__remove {
+	margin-left: var(--size-2-2);
+	cursor: pointer;
+	opacity: 0.7;
+}
+
+.promptbox-invalid {
+	border-color: var(--text-error) !important;
+}
+
+.promptbox-library__count-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+	margin-bottom: var(--size-4-2);
+}
+
+.is-mobile .promptbox-item__action {
+	min-height: 44px;
+	min-width: 44px;
+}
+
+.is-mobile .promptbox-library__count-row .mod-cta {
+	min-height: 44px;
+}
