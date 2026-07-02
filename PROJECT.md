@@ -6,7 +6,7 @@ Obsidian plugin: local-first library of AI prompts with categorization, search, 
 ## Phases
 
 ### Phase 1 — MVP (local library, Tiers 0-7)
-- [ ] Tier 0 toolchain and plugin skeleton
+- [x] Tier 0 toolchain and plugin skeleton  (completed: 2026-07-02)
 - [ ] Tier 1 domain model and storage layer
 - [ ] Tier 2 library view read-only
 - [ ] Tier 3 create edit delete
