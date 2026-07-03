@@ -1,38 +1,44 @@
-# SPEC — Favorites (Phase 1.5, from competitive-analysis §4 P0)
+# SPEC — Context variables (Phase 1.5, from competitive-analysis §4 P1)
 
-**Topic slug:** favorites
+**Topic slug:** context-variables
 
 | | |
 |---|---|
-| Source | `docs/competitive-analysis.md` §4 P0 (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
-| Depends on | Tiers 1-4 (met); ADR-0001, ADR-0002 binding |
-| Effort | S |
+| Source | `docs/competitive-analysis.md` §4 P1 (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
+| Depends on | Tier 4 placeholder parser and copy flow (met); ADR-0001, ADR-0002 binding |
+| Effort | M |
 
 ## 1. Purpose
 
-Let the user mark prompts as favorites so frequent prompts surface first in the library view and quick picker. Serves US-2 (find fast) and US-7 (mobile lookup). The field stays readable in plain notes (US-8).
+Resolve workspace context into prompts at copy time through a reserved placeholder namespace, so prompts can reference the active note, current selection, today's date, or the clipboard without manual filling. Extends FR-4 without touching its conservative contract.
 
 ## 2. Requirements
 
-### FR-9 Favorites (MUST)
+### FR-10 Context variables (MUST)
 
-- FR-9.1 New optional frontmatter field `favorite` (boolean). Absent, invalid, or non-boolean values parse as `false` and never crash the view (NFR-8). The field is written only on an explicit user toggle, via the official frontmatter API (ADR-0001).
-- FR-9.2 Library view: each card shows a star toggle (filled = favorite). Toggling updates the note frontmatter and the view reflects the change within 1 s. Tooltip on the control.
-- FR-9.3 Quick picker: favorite prompts display a star indicator and rank above non-favorites at equal fuzzy score. Toggling from inside the picker is COULD, not MUST.
-- FR-9.4 Filter bar: a "Favorites" filter chip; combines with existing filters in AND (FR-2.2 pattern).
-- FR-9.5 Sort: "favorites first" option; within each group the current sort order applies (FR-2.5 pattern).
+- FR-10.1 Reserved namespace: a placeholder whose name starts with `@` is a context variable. Supported names: `@selection`, `@title`, `@date`, `@clipboard` (lowercase, exact). A `{{@name}}` with any other `@name` is left untouched in the output, consistent with the conservative parser rule (FR-4.6).
+- FR-10.2 Resolution at copy time, from workspace state:
+  - `@selection` → current selection of the active Markdown editor; if no editor is focused or the selection is empty, resolve to the empty string and show one Notice naming the unresolved variable.
+  - `@title` → active note's basename; empty string plus Notice when no note is active.
+  - `@date` → today as `YYYY-MM-DD` (always resolvable).
+  - `@clipboard` → current clipboard text via the Obsidian-supported clipboard API; on read failure (platform restrictions), empty string plus Notice (NFR-3 pattern).
+- FR-10.3 Context variables never appear in the variable-filling modal (FR-4.2). A prompt whose only placeholders are context variables copies without any modal, after resolution. Defaults and hints on a context variable (e.g. `{{@title|fallback}}`) are ignored; the segment is treated as a plain context variable.
+- FR-10.4 Copy raw (FR-4.5) bypasses resolution entirely: `{{@anything}}` reaches the clipboard verbatim.
+- FR-10.5 Both copy entry points resolve context: library view copy action and quick picker (FR-5).
 
 ## 3. Acceptance criteria
 
-- Toggle a card's star: frontmatter gains `favorite: true`; the star fills; disabling the plugin still shows a plain readable note (US-8).
-- Enable the Favorites filter with `type=task`: only favorite task prompts listed, count updates.
-- Quick picker: favorites appear with star and rank first among equal matches.
-- Malformed value (`favorite: "yes please"`) → treated as false, warning-free render.
+- Body `Review {{@selection}} for {{tone|neutral}}` with text selected in an open editor: copy shows the modal only for `tone`; the clipboard contains the selected text substituted.
+- Same body, no editor focused: clipboard has empty string in place of `@selection`, one Notice names it, `tone` modal still shown.
+- Body `{{@date}}` copies instantly (no modal) with today's date.
+- Copy raw on `{{@title}}` yields `{{@title}}` verbatim.
+- `{{@unknown}}` passes through untouched in resolved copy.
 
 ## 4. Constraints
 
-- No network (NFR-5). Native Obsidian primitives only (ADR-0002). Desktop and mobile touch targets (FR-2.7). No default hotkeys (NFR-7). Frontmatter writes exclusively via official API (ADR-0001). Tests via existing vitest suite; `.claude/test-cmd` is authoritative and must not change.
+- Parser stays a pure function (`src/domain/placeholders.ts`); workspace resolution lives in the UI/copy layer, injected as a resolver, so domain tests need no Obsidian mocks.
+- No network (NFR-5). Native primitives (ADR-0002). Desktop and mobile; `@selection`/`@clipboard` availability differences on mobile degrade to empty-plus-Notice, never a crash (NFR-8). `.claude/test-cmd` is authoritative and must not change.
 
 ## 5. Out of scope
 
-Favorite counts or usage tracking (parked N4), per-device favorites, sync semantics beyond the note field itself.
+Additional context names (vault name, frontmatter fields), nested resolution, template logic (parked §4 P3a), Templater interop (NG-7).
