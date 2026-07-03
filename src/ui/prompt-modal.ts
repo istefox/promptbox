@@ -2,6 +2,7 @@ import { Modal, Notice, setIcon, setTooltip, Setting, type App, type TFile } fro
 import { bumpVersion, type PromptDraft } from "../domain/draft";
 import { VISIBILITIES, type Prompt, type Visibility } from "../domain/prompt";
 import { relatedPrompts } from "../domain/related";
+import { suggestValues } from "../domain/suggestions";
 import type { PromptboxSettings } from "../settings";
 import { createPrompt, updatePrompt } from "../storage/prompt-writer";
 import { TagSuggest } from "./suggest";
@@ -86,17 +87,55 @@ export class PromptModal extends Modal {
 		contentEl.addClass("promptbox-modal");
 		this.setTitle(this.mode.kind === "create" ? "New prompt" : "Edit prompt metadata");
 
+		// Shared 150ms debounce driving both scoped suggestion refreshes (FR-11.2, ADR-0006).
+		let suggestionsDebounce: number | undefined;
+		const scheduleSuggestionsRefresh = () => {
+			window.clearTimeout(suggestionsDebounce);
+			suggestionsDebounce = window.setTimeout(() => {
+				renderTagSuggestions();
+				renderCategorySuggestions();
+			}, 150);
+		};
+
 		const titleRow = this.fieldRow("heading", "Title").setDesc("Required. The file name derives from it.");
 		titleRow.addText((t) => {
 			this.titleInput = t.inputEl;
 			t.setValue(this.draft.title).onChange((v) => {
 				this.draft.title = v;
 				this.titleInput?.removeClass("promptbox-invalid");
+				scheduleSuggestionsRefresh();
 			});
 		});
 
 		this.taxonomyRow("shapes", "Type", "type", this.deps.settings.typeValues, false);
-		this.taxonomyRow("folder", "Category", "category", this.deps.settings.categoryValues, true);
+		this.taxonomyRow(
+			"folder",
+			"Category",
+			"category",
+			this.deps.settings.categoryValues,
+			true,
+			() => renderCategorySuggestions(),
+		);
+		const categorySuggestionsEl = contentEl.createDiv({ cls: "promptbox-suggestions" });
+		const renderCategorySuggestions = () => {
+			const suggestions = suggestValues(
+				{ title: this.draft.title, useCase: this.draft.useCase, body: this.draft.body },
+				this.deps.settings.categoryValues,
+				this.draft.category ? [this.draft.category] : [],
+				3,
+			);
+			categorySuggestionsEl.empty();
+			if (suggestions.length === 0) return;
+			categorySuggestionsEl.createSpan({ text: "Suggested", cls: "promptbox-filters__label" });
+			for (const value of suggestions) {
+				const chip = categorySuggestionsEl.createSpan({ text: value, cls: "promptbox-chip" });
+				chip.addEventListener("click", () => {
+					this.draft.category = value;
+					this.display();
+				});
+			}
+		};
+		renderCategorySuggestions();
 
 		// Tags: chips inside a visible container + input with suggestions (FR-3.4)
 		const tagsRow = this.fieldRow("tags", "Tags");
@@ -115,6 +154,7 @@ export class PromptModal extends Modal {
 				remove.addEventListener("click", () => {
 					this.draft.tags = this.draft.tags.filter((t) => t !== tag);
 					renderChips();
+					renderTagSuggestions();
 				});
 			}
 		};
@@ -126,6 +166,7 @@ export class PromptModal extends Modal {
 			if (value !== "" && !this.draft.tags.includes(value)) {
 				this.draft.tags.push(value);
 				renderChips();
+				renderTagSuggestions();
 			}
 			input.value = "";
 		};
@@ -136,6 +177,29 @@ export class PromptModal extends Modal {
 			}
 		});
 		input.addEventListener("blur", commit);
+
+		const tagSuggestionsEl = tagsRow.controlEl.createDiv({ cls: "promptbox-suggestions" });
+		const renderTagSuggestions = () => {
+			const suggestions = suggestValues(
+				{ title: this.draft.title, useCase: this.draft.useCase, body: this.draft.body },
+				this.deps.tagPool,
+				this.draft.tags,
+				5,
+			);
+			tagSuggestionsEl.empty();
+			if (suggestions.length === 0) return;
+			tagSuggestionsEl.createSpan({ text: "Suggested", cls: "promptbox-filters__label" });
+			for (const value of suggestions) {
+				const chip = tagSuggestionsEl.createSpan({ text: value, cls: "promptbox-chip" });
+				chip.addEventListener("click", () => {
+					if (this.draft.tags.includes(value)) return;
+					this.draft.tags.push(value);
+					renderChips();
+					renderTagSuggestions();
+				});
+			}
+		};
+		renderTagSuggestions();
 
 		this.fieldRow("star", "Quality").addDropdown((d) => {
 			d.addOption("", "(unset)");
@@ -148,7 +212,10 @@ export class PromptModal extends Modal {
 		this.fieldRow("info", "Use case")
 			.setDesc("One line on when to reach for this prompt.")
 			.addText((t) => {
-				t.setValue(this.draft.useCase).onChange((v) => (this.draft.useCase = v));
+				t.setValue(this.draft.useCase).onChange((v) => {
+					this.draft.useCase = v;
+					scheduleSuggestionsRefresh();
+				});
 			});
 
 		this.fieldRow("eye", "Visibility")
@@ -182,7 +249,10 @@ export class PromptModal extends Modal {
 			bodyRow.addTextArea((t) => {
 				t.setPlaceholder("Prompt text. Placeholders: {{name}}, {{name|default}}, {{name|a,b,c|hint}}.");
 				t.inputEl.rows = 10;
-				t.setValue(this.draft.body).onChange((v) => (this.draft.body = v));
+				t.setValue(this.draft.body).onChange((v) => {
+					this.draft.body = v;
+					scheduleSuggestionsRefresh();
+				});
 			});
 		} else {
 			this.fieldRow("file-text", "Body")
@@ -223,6 +293,7 @@ export class PromptModal extends Modal {
 		key: "type" | "category",
 		configured: string[],
 		optional: boolean,
+		onSelect?: (value: string) => void,
 	): void {
 		const row = this.fieldRow(icon, label);
 		row.addDropdown((d) => {
@@ -236,6 +307,7 @@ export class PromptModal extends Modal {
 					return;
 				}
 				this.draft[key] = v;
+				onSelect?.(v);
 			});
 		});
 

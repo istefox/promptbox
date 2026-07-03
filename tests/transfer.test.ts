@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import { normalizePrompt, type Prompt } from "../src/domain/prompt";
 import {
 	buildExport,
+	buildPackExport,
+	diffImportEntry,
+	lineDelta,
+	parsePackHeader,
 	planImport,
 	validateImport,
 	type ExportDoc,
 	type ExportedPrompt,
+	type PackHeader,
 } from "../src/domain/transfer";
 
 function prompt(path: string, fm: Record<string, unknown>): Prompt {
@@ -105,6 +110,98 @@ describe("planImport — conflict policies (FR-7.3)", () => {
 	});
 });
 
+describe("lineDelta", () => {
+	it("reports no change for identical bodies", () => {
+		expect(lineDelta("a\nb\nc", "a\nb\nc")).toEqual({ added: 0, removed: 0 });
+	});
+
+	it("reports pure appends as added only", () => {
+		expect(lineDelta("a\nb", "a\nb\nc\nd")).toEqual({ added: 2, removed: 0 });
+	});
+
+	it("reports one edited line as one added and one removed", () => {
+		expect(lineDelta("a\nb\nc", "a\nx\nc")).toEqual({ added: 1, removed: 1 });
+	});
+
+	it("reports an empty existing body against N incoming lines as N added", () => {
+		expect(lineDelta("", "a\nb\nc")).toEqual({ added: 3, removed: 0 });
+	});
+});
+
+function exportedPrompt(overrides: Partial<ExportedPrompt> = {}): ExportedPrompt {
+	return {
+		path: "a.md",
+		title: "A",
+		type: "task",
+		category: "cat",
+		tags: ["x"],
+		quality: 3,
+		use_case: "use",
+		visibility: "private",
+		version: "1.0",
+		created: "2026-01-01",
+		updated: "2026-06-01",
+		body: "line1\nline2",
+		...overrides,
+	};
+}
+
+describe("diffImportEntry (FR-17.2, FR-17.3)", () => {
+	it("surfaces a quality change and a pure body append (SPEC.md §3 first bullet)", () => {
+		const existing = exportedPrompt({ quality: 3, body: "line1\nline2" });
+		const incoming = exportedPrompt({ quality: 5, body: "line1\nline2\nline3\nline4" });
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([{ field: "quality", from: 3, to: 5 }]);
+		expect(diff.body).toEqual({ changed: true, added: 2, removed: 0 });
+		expect(diff.identical).toBe(false);
+	});
+
+	it("labels a byte-identical entry as identical (SPEC.md §3 third bullet)", () => {
+		const existing = exportedPrompt();
+		const incoming = exportedPrompt();
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([]);
+		expect(diff.body).toEqual({ changed: false, added: 0, removed: 0 });
+		expect(diff.identical).toBe(true);
+	});
+
+	it("surfaces tags changes as raw arrays, not joined strings", () => {
+		const existing = exportedPrompt({ tags: ["x"] });
+		const incoming = exportedPrompt({ tags: ["x", "y"] });
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([{ field: "tags", from: ["x"], to: ["x", "y"] }]);
+	});
+
+	it("surfaces quality going from defined to undefined and back", () => {
+		const defined = exportedPrompt({ quality: 4 });
+		const undefinedQuality = exportedPrompt({ quality: undefined });
+		expect(diffImportEntry(defined, undefinedQuality).fieldChanges).toEqual([
+			{ field: "quality", from: 4, to: undefined },
+		]);
+		expect(diffImportEntry(undefinedQuality, defined).fieldChanges).toEqual([
+			{ field: "quality", from: undefined, to: 4 },
+		]);
+	});
+
+	it("reports identical: false with no field changes when only the body differs", () => {
+		const existing = exportedPrompt({ body: "line1" });
+		const incoming = exportedPrompt({ body: "line1\nline2" });
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([]);
+		expect(diff.identical).toBe(false);
+	});
+
+	it("surfaces created/updated differences as field changes", () => {
+		const existing = exportedPrompt({ created: "2026-01-01", updated: "2026-06-01" });
+		const incoming = exportedPrompt({ created: "2026-01-02", updated: "2026-06-02" });
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([
+			{ field: "created", from: "2026-01-01", to: "2026-01-02" },
+			{ field: "updated", from: "2026-06-01", to: "2026-06-02" },
+		]);
+	});
+});
+
 describe("round trip (FR-7.4)", () => {
 	it("export → validate → plan into empty folder reproduces equivalent entries", () => {
 		const doc = buildExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z");
@@ -117,6 +214,113 @@ describe("round trip (FR-7.4)", () => {
 		for (const original of doc.prompts) {
 			const restored = materialized.get(original.path);
 			expect(restored).toEqual(original);
+		}
+	});
+});
+
+describe("buildPackExport (FR-20.1)", () => {
+	it("attaches the given pack header; prompts match buildExport for the same inputs", () => {
+		const pack: PackHeader = { name: "Code Review Kit", description: "Prompts for reviewing PRs" };
+		const doc = buildPackExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z", pack);
+		expect(doc.pack).toEqual(pack);
+		const plain = buildExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z");
+		expect(doc.prompts).toEqual(plain.prompts);
+	});
+});
+
+describe("parsePackHeader (FR-21.1)", () => {
+	it("treats undefined and null as absent, no warning", () => {
+		expect(parsePackHeader(undefined)).toEqual({ pack: undefined, warning: null });
+		expect(parsePackHeader(null)).toEqual({ pack: undefined, warning: null });
+	});
+
+	it("parses a well-formed pack verbatim", () => {
+		const result = parsePackHeader({ name: "Code Review Kit", description: "For PRs" });
+		expect(result).toEqual({ pack: { name: "Code Review Kit", description: "For PRs" }, warning: null });
+	});
+
+	it("defaults description to empty string when omitted", () => {
+		const result = parsePackHeader({ name: "Code Review Kit" });
+		expect(result.warning).toBeNull();
+		expect(result.pack?.description).toBe("");
+	});
+
+	it("warns and drops the pack on a malformed root type (e.g. a bare string)", () => {
+		const result = parsePackHeader("oops");
+		expect(result.pack).toBeUndefined();
+		expect(result.warning).not.toBeNull();
+	});
+
+	it.each([{}, { name: "" }, { name: "   " }, { name: 42 }])(
+		"warns and drops the pack for %j",
+		(raw) => {
+			const result = parsePackHeader(raw);
+			expect(result.pack).toBeUndefined();
+			expect(result.warning).not.toBeNull();
+		},
+	);
+
+	it("warns and drops the whole pack when description has the wrong type (no partial repair)", () => {
+		const result = parsePackHeader({ name: "ok", description: 42 });
+		expect(result.pack).toBeUndefined();
+		expect(result.warning).not.toBeNull();
+	});
+
+	it("ignores unknown extra keys without warning", () => {
+		const result = parsePackHeader({ name: "Code Review Kit", description: "For PRs", extra: "ignored" });
+		expect(result.warning).toBeNull();
+		expect(result.pack).toEqual({ name: "Code Review Kit", description: "For PRs" });
+	});
+});
+
+describe("validateImport with pack (FR-21.1, FR-21.2)", () => {
+	it("a doc without a pack key stays plain: ok, no warnings, doc.pack undefined", () => {
+		const doc = buildExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z");
+		const result = validateImport(JSON.parse(JSON.stringify(doc)) as unknown);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.warnings).toEqual([]);
+		expect(result.doc.pack).toBeUndefined();
+	});
+
+	it("a doc with a well-formed pack surfaces it with no warnings", () => {
+		const pack: PackHeader = { name: "Code Review Kit", description: "For PRs" };
+		const doc = buildPackExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z", pack);
+		const result = validateImport(JSON.parse(JSON.stringify(doc)) as unknown);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.warnings).toEqual([]);
+		expect(result.doc.pack).toEqual(pack);
+		expect(result.doc.prompts.length).toBe(2);
+	});
+
+	it("a malformed pack ('oops') warns but still imports as plain", () => {
+		const doc = buildExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z");
+		const raw = { ...(JSON.parse(JSON.stringify(doc)) as Record<string, unknown>), pack: "oops" };
+		const result = validateImport(raw);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.doc.pack).toBeUndefined();
+		expect(result.warnings.length).toBe(1);
+	});
+
+	it("pre-existing hard-failure cases still yield ok:false unchanged", () => {
+		expect(validateImport({ schema_version: 2, prompts: [] }).ok).toBe(false);
+		expect(validateImport({ schema_version: 1, prompts: "no" }).ok).toBe(false);
+	});
+});
+
+describe("round trip with pack (FR-21.3, extends FR-7.4)", () => {
+	it("build → stringify/parse → validate reproduces the pack header and prompts, with no per-prompt pack key", () => {
+		const pack: PackHeader = { name: "Code Review Kit", description: "For PRs" };
+		const doc = buildPackExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z", pack);
+		const result = validateImport(JSON.parse(JSON.stringify(doc)) as unknown);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.doc.pack).toEqual(pack);
+		expect(result.doc.prompts).toEqual(doc.prompts);
+		for (const entry of result.doc.prompts) {
+			expect(Object.prototype.hasOwnProperty.call(entry, "pack")).toBe(false);
 		}
 	});
 });
