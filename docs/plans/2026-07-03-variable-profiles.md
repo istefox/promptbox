@@ -10,7 +10,7 @@
 
 ## Tasks
 
-- [ ] **Task 1 — Domain layer: `variable-profiles.ts`, TDD**
+- [x] **Task 1 — Domain layer: `variable-profiles.ts`, TDD**
   - Goal: pure, fully tested functions for tolerant load (FR-14.1), dropdown gating (FR-14.2), profile application (FR-14.5), and save-as-profile (FR-14.3). Nothing here touches the DOM or settings persistence.
   - Files: create `src/domain/variable-profiles.ts`; create `tests/variable-profiles.test.ts`.
   - Exports: `VariableProfile { name: string; values: Record<string,string> }`; `normalizeProfiles(raw: unknown): VariableProfile[]`; `matchingProfiles(profiles, variableNames: string[]): VariableProfile[]`; `applyProfile(profileValues, currentValues, variableNames): Record<string,string>`; `findProfileIndex(profiles, name: string): number`; `upsertProfile(profiles, name, values): VariableProfile[]`.
@@ -22,13 +22,13 @@
     - `upsertProfile`: new case-insensitive name → appended, input array not mutated; existing case-insensitive match → same length, that entry's `name` becomes exactly the newly given string (not the old casing) and `values` is replaced wholesale, not merged.
   - No dependency on `settings.ts`, `obsidian`, or any `ui/` file.
 
-- [ ] **Task 2 — Settings persistence wiring**
+- [x] **Task 2 — Settings persistence wiring**
   - Goal: `data.json` gains a tolerant, versionless `profiles` field (FR-14.1), delegating all parsing smarts to Task 1.
   - Files: modify `src/settings.ts`.
   - Contract changes: `PromptboxSettings` gains `profiles: VariableProfile[]`; `DEFAULT_SETTINGS.profiles = []`; both `mergeSettings` return branches (the corrupt-input early return and the normal path) set `profiles: normalizeProfiles(r["profiles"])` (or `[]` on the early-return branch, matching how `categoryValues` is handled there today). Import `normalizeProfiles` and `type VariableProfile` from `../domain/variable-profiles` — one-directional dependency (settings depends on domain, never the reverse), no cycle.
   - Test: none new (the tolerant-load behavior itself is already covered by Task 1's `normalizeProfiles` tests; this task is a thin, mechanical delegation). Verify with `npm run build` (typecheck) — confirm no other file in `src/` or `tests/` constructs a `PromptboxSettings` object literal that would now be missing the required `profiles` field (grepped already: only `settings.ts` itself does; `main.ts` and `prompt-modal.ts` only read the type, they never construct a literal).
 
-- [ ] **Task 3 — Variable modal: profile dropdown, apply-on-select, save-as-profile**
+- [x] **Task 3 — Variable modal: profile dropdown, apply-on-select, save-as-profile**
   - Goal: `VariableModal` supports FR-14.2 and FR-14.3 while staying loss-free across rebuilds.
   - Files: modify `src/ui/variable-modal.ts`.
   - Contract changes: export a new `VariableModalDeps` interface, `{ profiles: VariableProfile[]; saveProfile: (name: string, values: Record<string, string>) => Promise<void> }`; constructor becomes `(app, variables, deps: VariableModalDeps, onSubmit)`.
