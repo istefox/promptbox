@@ -37,6 +37,19 @@ npm run lint     # eslint
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
 
+## Decisions from the favorites chain (ADR-0004)
+
+Favorites: `favorite` boolean frontmatter field with star toggle, filter chip, favorites-first sort.
+
+Key architectural decisions:
+- **Silent tolerant parse:** `favorite` parses as `value === true` and never warns — the one deliberate exception to warn-on-invalid (FR-9.1).
+- **Orthogonal query flags:** `LibraryQuery` gains `favoritesOnly`/`favoritesFirst` booleans; no new SortKey variants.
+- **Picker ranking:** `rankFavoritesFirst<T>` reorders only at equal fuzzy score, preserving native relevance.
+- **Transfer allowlist unchanged:** `favorite` is intentionally excluded from JSON export/import (schema_version 1); revisit trigger in the ADR.
+- **Omit-on-false:** the frontmatter key is deleted when false, per the minimal-frontmatter convention.
+
+Detail: `docs/adr/0004-favorites.md`.
+
 ## Decisions from the context-variables chain (ADR-0005)
 
 Context variables: reserved `{{@selection}}` `{{@title}}` `{{@date}}` `{{@clipboard}}` resolved at copy time.
