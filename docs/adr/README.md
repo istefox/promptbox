@@ -14,4 +14,5 @@ Decisions are numbered, immutable once accepted (superseded by new ADRs, never e
 | [0009](0009-variable-profiles.md) | Store variable profiles in plugin settings behind a pure domain layer | Accepted |
 | [0010](0010-prompt-linter.md) | Prompt linter as pure domain rules with a shared per-render lint pass | Accepted |
 | [0011](0011-import-diff-preview.md) | Import-conflict diff preview | Accepted |
+| [0012](0012-related-prompts.md) | Related prompts: pure weighted-overlap scorer, surfaced read-only in the edit modal | Accepted |
 | [0013](0013-curated-packs.md) | Curated packs: additive pack header for export/import | Accepted |

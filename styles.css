@@ -338,6 +338,37 @@
 	resize: vertical;
 }
 
+/* Related section (ADR-0012, FR-19) */
+.promptbox-related {
+	margin-top: var(--size-4-3);
+	padding-top: var(--size-4-2);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.promptbox-related__heading {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	margin-bottom: var(--size-2-2);
+}
+
+.promptbox-related__item {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	padding: var(--size-2-2) 0;
+}
+
+.promptbox-related__title {
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.is-mobile .promptbox-related__action {
+	min-height: 44px;
+	min-width: 44px;
+}
+
 /* Tags container with empty state (backlog 4) */
 .promptbox-tags-box {
 	display: flex;

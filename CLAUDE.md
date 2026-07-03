@@ -37,6 +37,17 @@ npm run lint     # eslint
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
 
+## Decisions from the related-prompts chain (ADR-0012)
+
+Read-only "Related" section in the edit modal: top 5 neighbors by shared tags (×3), category (×2), title/use_case token overlap (×1).
+
+Key architectural decisions:
+- **Pure `src/domain/related.ts`:** `similarityScore` + `relatedPrompts` return ranked `Prompt[]`, never scores; vitest-covered.
+- **One deps field:** `PromptModalDeps.allPrompts` snapshot; related list computed once in the constructor (edit mode only), `display()` only reads it.
+- **SPEC.md wins over PROJECT.md wording** (use_case, not body); conflict noted, not silently resolved.
+
+Detail: `docs/adr/0012-related-prompts.md`.
+
 ## Decisions from the curated-packs chain (ADR-0013)
 
 Optional `pack: {name, description}` header on the existing export schema; "Export as pack…" from the filtered view; pack banner on import.

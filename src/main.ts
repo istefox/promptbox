@@ -199,6 +199,7 @@ export default class PromptboxPlugin extends Plugin {
 			settings: this.settings,
 			folder: this.settings.promptsFolder,
 			tagPool: this.buildTagPool(),
+			allPrompts: this.index.getAll(),
 			persistSettings: () => this.saveSettings(),
 			openFile: (file: TFile) => {
 				void this.app.workspace.getLeaf(false).openFile(file);
