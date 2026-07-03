@@ -16,17 +16,17 @@ Obsidian plugin: local-first library of AI prompts with categorization, search, 
 - [~] Tier 7 release and store submission  (needs-human: store submission and reviewer feedback loop; excluded from nightly runs)
 
 ### Phase 1.5 — Post-MVP: competitive parity and differentiation (source: docs/competitive-analysis.md; local-first, no network, ADR-0001/0002 binding)
-- [ ] favorites: boolean frontmatter field, star toggle in view and picker, filter chip and favorites-first sort (§4 P0, effort S)
-- [ ] context variables: reserved placeholders {{@selection}} {{@title}} {{@date}} {{@clipboard}} resolved at copy time, skipped in the variable modal, copy-raw untouched (§4 P1, effort M)
-- [ ] tag and category suggestions: local heuristic scorer, suggestion chips in create/edit modal, never auto-written (§4 P2a, effort M)
-- [ ] vault-content transclusion: resolve [[wikilinks]] in prompt body at copy time, depth cap 1, cycle detection, preview step, copy-raw bypasses (§4 P2b, effort L)
-- [ ] launcher integration: obsidian://promptbox URI action, lookup by title or path, variable flow, result to clipboard (§6 N1, effort M)
-- [ ] saved variable profiles: named placeholder value sets in data.json, selectable in the variable modal (§6 N2, effort M)
-- [ ] prompt linter: on-demand per-prompt and library-wide health check, badge plus report modal, never auto-fix (§6 N3, effort S/M)
-- [ ] import-conflict diff preview: body/metadata diff before overwrite during JSON import (§6 N5, effort S)
-- [ ] related prompts: nearest neighbors by shared tags, category, title/body token overlap (§6 N6, effort S/M)
-- [ ] curated packs export: named pack metadata on top of schema_version 1 JSON, pack-aware import summary (§6 N7, effort S)
-- [ ] library statistics view: counts by taxonomy, quality distribution, stale prompts, taxonomy orphans (§6 N8, effort S)
+- [x] favorites: boolean frontmatter field, star toggle in view and picker, filter chip and favorites-first sort (§4 P0, effort S)  (completed: 2026-07-03)
+- [x] context variables: reserved placeholders {{@selection}} {{@title}} {{@date}} {{@clipboard}} resolved at copy time, skipped in the variable modal, copy-raw untouched (§4 P1, effort M)  (completed: 2026-07-03)
+- [x] tag and category suggestions: local heuristic scorer, suggestion chips in create/edit modal, never auto-written (§4 P2a, effort M)  (completed: 2026-07-03)
+- [x] vault-content transclusion: resolve [[wikilinks]] in prompt body at copy time, depth cap 1, cycle detection, preview step, copy-raw bypasses (§4 P2b, effort L)  (completed: 2026-07-03)
+- [x] launcher integration: obsidian://promptbox URI action, lookup by title or path, variable flow, result to clipboard (§6 N1, effort M)  (completed: 2026-07-03)
+- [x] saved variable profiles: named placeholder value sets in data.json, selectable in the variable modal (§6 N2, effort M)  (completed: 2026-07-03)
+- [x] prompt linter: on-demand per-prompt and library-wide health check, badge plus report modal, never auto-fix (§6 N3, effort S/M)  (completed: 2026-07-03)
+- [x] import-conflict diff preview: body/metadata diff before overwrite during JSON import (§6 N5, effort S)  (completed: 2026-07-03)
+- [x] related prompts: nearest neighbors by shared tags, category, title/body token overlap (§6 N6, effort S/M)  (completed: 2026-07-03; note: scored on title/use_case per SPEC, not body)
+- [x] curated packs export: named pack metadata on top of schema_version 1 JSON, pack-aware import summary (§6 N7, effort S)  (completed: 2026-07-03)
+- [x] library statistics view: counts by taxonomy, quality distribution, stale prompts, taxonomy orphans (§6 N8, effort S)  (completed: 2026-07-03)
 
 Parked, not scheduled (do not pick up): template logic (§4 P3a), kanban board view (§4 P3b), usage recency tracking (§6 N4, blocked on a spec ruling: frontmatter write on copy vs data.json state).
 
