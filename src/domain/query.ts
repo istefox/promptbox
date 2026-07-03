@@ -1,6 +1,6 @@
 import type { Prompt, Visibility } from "./prompt";
 
-export type SortKey = "updated-desc" | "created-desc" | "title-asc" | "quality-desc";
+export type SortKey = "updated-desc" | "created-desc" | "title-asc" | "quality-desc" | "recently-used-desc";
 
 /** Inclusive YYYY-MM-DD bounds; ISO strings compare lexicographically. */
 export interface DateRange {
@@ -25,6 +25,8 @@ export interface LibraryQuery {
 	favoritesOnly: boolean;
 	/** FR-9.5: favorites float above non-favorites; the active sort still orders within each group. */
 	favoritesFirst: boolean;
+	/** FR-23.5: path -> epoch ms of last use, injected for "recently-used-desc"; ignored by every other sort. */
+	usageRecency?: Record<string, number>;
 }
 
 export function emptyQuery(): LibraryQuery {
@@ -82,7 +84,7 @@ export function runQuery(
 	return results.sort(comparator(q));
 }
 
-function baseComparator(sort: SortKey): (a: Prompt, b: Prompt) => number {
+function baseComparator(sort: SortKey, usageRecency?: Record<string, number>): (a: Prompt, b: Prompt) => number {
 	const byTitle = (a: Prompt, b: Prompt) => a.title.localeCompare(b.title);
 	switch (sort) {
 		case "updated-desc":
@@ -93,11 +95,16 @@ function baseComparator(sort: SortKey): (a: Prompt, b: Prompt) => number {
 			return byTitle;
 		case "quality-desc":
 			return (a, b) => (b.quality ?? 0) - (a.quality ?? 0) || byTitle(a, b);
+		case "recently-used-desc": {
+			const recency = usageRecency ?? {};
+			const fallback = baseComparator("updated-desc");
+			return (a, b) => (recency[b.path] ?? 0) - (recency[a.path] ?? 0) || fallback(a, b);
+		}
 	}
 }
 
 function comparator(q: LibraryQuery): (a: Prompt, b: Prompt) => number {
-	const base = baseComparator(q.sort);
+	const base = baseComparator(q.sort, q.usageRecency);
 	if (!q.favoritesFirst) return base;
 	return (a, b) => (Number(b.favorite) - Number(a.favorite)) || base(a, b);
 }

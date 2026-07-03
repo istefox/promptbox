@@ -1,6 +1,7 @@
 import { ItemView, Notice, setIcon, setTooltip, type WorkspaceLeaf } from "obsidian";
 import { lintLibrary, type PromptLintResult } from "../domain/lint";
 import { emptyQuery, runQuery, type LibraryQuery } from "../domain/query";
+import { usageRecencyMap } from "../domain/usage";
 import type { Prompt } from "../domain/prompt";
 import type PromptboxPlugin from "../main";
 import { deletePrompt, setFavorite } from "../storage/prompt-writer";
@@ -59,12 +60,12 @@ export class PromptboxLibraryView extends ItemView {
 		const exportBtn = buttons.createEl("button", { text: "Export filtered" });
 		exportBtn.addEventListener("click", () => {
 			const index = this.plugin.index;
-			void this.plugin.exportPrompts(runQuery(index.getAll(), (p) => index.getBody(p), this.query));
+			void this.plugin.exportPrompts(runQuery(index.getAll(), (p) => index.getBody(p), this.effectiveQuery()));
 		});
 		const exportPackBtn = buttons.createEl("button", { text: "Export as pack…" });
 		exportPackBtn.addEventListener("click", () => {
 			const index = this.plugin.index;
-			const filtered = runQuery(index.getAll(), (p) => index.getBody(p), this.query);
+			const filtered = runQuery(index.getAll(), (p) => index.getBody(p), this.effectiveQuery());
 			if (filtered.length === 0) {
 				new Notice("Promptbox: nothing to export.");
 				return;
@@ -90,7 +91,7 @@ export class PromptboxLibraryView extends ItemView {
 	/** Single render path (ADR-0002): every state change funnels through here. */
 	private render(): void {
 		const index = this.plugin.index;
-		const results = runQuery(index.getAll(), (path) => index.getBody(path), this.query);
+		const results = runQuery(index.getAll(), (path) => index.getBody(path), this.effectiveQuery());
 		this.filterBar?.setOptions(this.collectOptions());
 		this.countEl.setText(`${results.length} of ${index.size} prompt(s)`);
 		this.listEl.empty();
@@ -100,6 +101,12 @@ export class PromptboxLibraryView extends ItemView {
 		}
 		const lintByPath = new Map(lintLibrary(index.getAll(), (p) => index.getBody(p)).map((r) => [r.path, r]));
 		for (const prompt of results) this.renderItem(prompt, lintByPath);
+	}
+
+	/** FR-23.5: injects usage recency only for the "recently-used-desc" sort; every other sort is untouched. */
+	private effectiveQuery(): LibraryQuery {
+		if (this.query.sort !== "recently-used-desc") return this.query;
+		return { ...this.query, usageRecency: usageRecencyMap(this.plugin.usage) };
 	}
 
 	private renderEmptyState(indexSize: number): void {
@@ -133,18 +140,21 @@ export class PromptboxLibraryView extends ItemView {
 			header.createSpan({ text: "★".repeat(prompt.quality), cls: "promptbox-item__quality" });
 		}
 		const actions = header.createDiv({ cls: "promptbox-item__actions" });
-		this.addItemAction(actions, "braces", "Copy with variables", () =>
+		this.addItemAction(actions, "braces", "Copy with variables", () => {
 			copyWithVariables(
 				this.app,
 				prompt.title,
 				this.plugin.index.getBody(prompt.path),
 				prompt.path,
 				this.plugin.variableModalDeps(),
-			),
-		);
-		this.addItemAction(actions, "clipboard-copy", "Copy raw", () =>
-			copyRaw(prompt.title, this.plugin.index.getBody(prompt.path)),
-		);
+				() => this.plugin.recordPromptUsage(prompt.path),
+			);
+		});
+		this.addItemAction(actions, "clipboard-copy", "Copy raw", () => {
+			copyRaw(prompt.title, this.plugin.index.getBody(prompt.path), () =>
+				this.plugin.recordPromptUsage(prompt.path),
+			);
+		});
 		this.addItemAction(actions, "pencil", "Edit metadata", () => this.plugin.openEditModal(prompt.path));
 		this.addItemAction(actions, "file-text", "Open as note", () => {
 			void this.openAsNote(prompt.path);
