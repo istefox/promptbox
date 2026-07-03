@@ -25,6 +25,24 @@ export interface ExportDoc {
 	prompts: ExportedPrompt[];
 }
 
+/** Maps a `Prompt` + its note body into the transfer wire shape (FR-7.2). */
+export function toExportedPrompt(prompt: Prompt, body: string, relativePath: string): ExportedPrompt {
+	return {
+		path: relativePath,
+		title: prompt.title,
+		type: prompt.type,
+		category: prompt.category,
+		tags: [...prompt.tags],
+		...(prompt.quality !== undefined ? { quality: prompt.quality } : {}),
+		use_case: prompt.useCase,
+		visibility: prompt.visibility,
+		version: prompt.version,
+		created: prompt.created,
+		updated: prompt.updated,
+		body,
+	};
+}
+
 export function buildExport(
 	prompts: Prompt[],
 	getBody: (path: string) => string,
@@ -35,20 +53,9 @@ export function buildExport(
 	return {
 		schema_version: SCHEMA_VERSION,
 		exported_at: exportedAt,
-		prompts: prompts.map((p) => ({
-			path: p.path.startsWith(prefix) ? p.path.slice(prefix.length) : p.path,
-			title: p.title,
-			type: p.type,
-			category: p.category,
-			tags: [...p.tags],
-			...(p.quality !== undefined ? { quality: p.quality } : {}),
-			use_case: p.useCase,
-			visibility: p.visibility,
-			version: p.version,
-			created: p.created,
-			updated: p.updated,
-			body: getBody(p.path),
-		})),
+		prompts: prompts.map((p) =>
+			toExportedPrompt(p, getBody(p.path), p.path.startsWith(prefix) ? p.path.slice(prefix.length) : p.path),
+		),
 	};
 }
 
@@ -156,4 +163,93 @@ export function planImport(doc: ExportDoc, existing: ReadonlySet<string>, policy
 		taken.add(targetPath);
 		return { kind: "duplicate" as const, targetPath, entry };
 	});
+}
+
+/** Per-field difference surfaced by the import overwrite preview (FR-17.2). */
+export type ImportFieldChange =
+	| { field: "tags"; from: string[]; to: string[] }
+	| { field: "quality"; from: number | undefined; to: number | undefined }
+	| {
+			field: "title" | "type" | "category" | "use_case" | "visibility" | "version" | "created" | "updated";
+			from: string;
+			to: string;
+	  };
+
+/** Structured diff of one overwrite conflict (FR-17.2, FR-17.3). */
+export interface ImportDiff {
+	targetPath: string;
+	identical: boolean;
+	fieldChanges: ImportFieldChange[];
+	body: { changed: boolean; added: number; removed: number };
+}
+
+/**
+ * Minimal line-based body comparison (FR-17.3): a line-multiset difference,
+ * not an LCS/patch. A pure append of N lines yields +N/-0; a single edited
+ * line yields +1/-1; identical bodies yield 0/0. Reordered-but-identical
+ * lines are reported as unchanged (a known limit of a non-order-aware metric).
+ */
+function bodyLines(body: string): string[] {
+	return body === "" ? [] : body.split("\n");
+}
+
+export function lineDelta(oldBody: string, newBody: string): { added: number; removed: number } {
+	const counts = new Map<string, number>();
+	for (const line of bodyLines(oldBody)) counts.set(line, (counts.get(line) ?? 0) + 1);
+	for (const line of bodyLines(newBody)) counts.set(line, (counts.get(line) ?? 0) - 1);
+	let added = 0;
+	let removed = 0;
+	for (const residue of counts.values()) {
+		if (residue > 0) removed += residue;
+		else added += -residue;
+	}
+	return { added, removed };
+}
+
+/**
+ * Diffs the existing note's transfer shape against the incoming entry
+ * (FR-17.2, FR-17.3), comparing exactly the ten fields `applyEntry` in
+ * `transfer-io.ts` overwrites, in that same order.
+ */
+export function diffImportEntry(existing: ExportedPrompt, incoming: ExportedPrompt): ImportDiff {
+	const fieldChanges: ImportFieldChange[] = [];
+
+	if (existing.title !== incoming.title) fieldChanges.push({ field: "title", from: existing.title, to: incoming.title });
+	if (existing.type !== incoming.type) fieldChanges.push({ field: "type", from: existing.type, to: incoming.type });
+	if (existing.category !== incoming.category) {
+		fieldChanges.push({ field: "category", from: existing.category, to: incoming.category });
+	}
+	const tagsEqual =
+		existing.tags.length === incoming.tags.length && existing.tags.every((t, i) => t === incoming.tags[i]);
+	if (!tagsEqual) {
+		fieldChanges.push({ field: "tags", from: existing.tags, to: incoming.tags });
+	}
+	if (existing.quality !== incoming.quality) {
+		fieldChanges.push({ field: "quality", from: existing.quality, to: incoming.quality });
+	}
+	if (existing.use_case !== incoming.use_case) {
+		fieldChanges.push({ field: "use_case", from: existing.use_case, to: incoming.use_case });
+	}
+	if (existing.visibility !== incoming.visibility) {
+		fieldChanges.push({ field: "visibility", from: existing.visibility, to: incoming.visibility });
+	}
+	if (existing.version !== incoming.version) {
+		fieldChanges.push({ field: "version", from: existing.version, to: incoming.version });
+	}
+	if (existing.created !== incoming.created) {
+		fieldChanges.push({ field: "created", from: existing.created, to: incoming.created });
+	}
+	if (existing.updated !== incoming.updated) {
+		fieldChanges.push({ field: "updated", from: existing.updated, to: incoming.updated });
+	}
+
+	const { added, removed } = lineDelta(existing.body, incoming.body);
+	const body = { changed: added > 0 || removed > 0, added, removed };
+
+	return {
+		targetPath: existing.path,
+		identical: fieldChanges.length === 0 && !body.changed,
+		fieldChanges,
+		body,
+	};
 }

@@ -414,3 +414,40 @@
 	margin-right: var(--size-2-2);
 	color: var(--text-accent);
 }
+
+/* Import overwrite diff preview (ADR-0011) */
+.promptbox-diff-preview {
+	max-height: 60vh;
+	overflow-y: auto;
+}
+
+.promptbox-diff-preview__item {
+	padding: var(--size-4-2) 0;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.promptbox-diff-preview__item:first-child {
+	border-top: none;
+}
+
+.promptbox-diff-preview__item h4 {
+	margin: 0 0 var(--size-2-2);
+	overflow-wrap: anywhere;
+}
+
+.promptbox-diff-preview__field {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-normal);
+}
+
+.promptbox-diff-preview__body {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	margin-top: var(--size-2-1);
+}
+
+.promptbox-diff-preview__identical {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	font-style: italic;
+}

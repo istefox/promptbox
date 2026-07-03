@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { normalizePrompt, type Prompt } from "../src/domain/prompt";
 import {
 	buildExport,
+	diffImportEntry,
+	lineDelta,
 	planImport,
 	validateImport,
 	type ExportDoc,
@@ -102,6 +104,98 @@ describe("planImport — conflict policies (FR-7.3)", () => {
 	it("handles conflicts within the same import file and nested paths", () => {
 		const actions = planImport(doc(["sub/x.md", "sub/x.md"]), new Set(), "duplicate");
 		expect(actions.map((a) => a.targetPath)).toEqual(["sub/x.md", "sub/x-1.md"]);
+	});
+});
+
+describe("lineDelta", () => {
+	it("reports no change for identical bodies", () => {
+		expect(lineDelta("a\nb\nc", "a\nb\nc")).toEqual({ added: 0, removed: 0 });
+	});
+
+	it("reports pure appends as added only", () => {
+		expect(lineDelta("a\nb", "a\nb\nc\nd")).toEqual({ added: 2, removed: 0 });
+	});
+
+	it("reports one edited line as one added and one removed", () => {
+		expect(lineDelta("a\nb\nc", "a\nx\nc")).toEqual({ added: 1, removed: 1 });
+	});
+
+	it("reports an empty existing body against N incoming lines as N added", () => {
+		expect(lineDelta("", "a\nb\nc")).toEqual({ added: 3, removed: 0 });
+	});
+});
+
+function exportedPrompt(overrides: Partial<ExportedPrompt> = {}): ExportedPrompt {
+	return {
+		path: "a.md",
+		title: "A",
+		type: "task",
+		category: "cat",
+		tags: ["x"],
+		quality: 3,
+		use_case: "use",
+		visibility: "private",
+		version: "1.0",
+		created: "2026-01-01",
+		updated: "2026-06-01",
+		body: "line1\nline2",
+		...overrides,
+	};
+}
+
+describe("diffImportEntry (FR-17.2, FR-17.3)", () => {
+	it("surfaces a quality change and a pure body append (SPEC.md §3 first bullet)", () => {
+		const existing = exportedPrompt({ quality: 3, body: "line1\nline2" });
+		const incoming = exportedPrompt({ quality: 5, body: "line1\nline2\nline3\nline4" });
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([{ field: "quality", from: 3, to: 5 }]);
+		expect(diff.body).toEqual({ changed: true, added: 2, removed: 0 });
+		expect(diff.identical).toBe(false);
+	});
+
+	it("labels a byte-identical entry as identical (SPEC.md §3 third bullet)", () => {
+		const existing = exportedPrompt();
+		const incoming = exportedPrompt();
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([]);
+		expect(diff.body).toEqual({ changed: false, added: 0, removed: 0 });
+		expect(diff.identical).toBe(true);
+	});
+
+	it("surfaces tags changes as raw arrays, not joined strings", () => {
+		const existing = exportedPrompt({ tags: ["x"] });
+		const incoming = exportedPrompt({ tags: ["x", "y"] });
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([{ field: "tags", from: ["x"], to: ["x", "y"] }]);
+	});
+
+	it("surfaces quality going from defined to undefined and back", () => {
+		const defined = exportedPrompt({ quality: 4 });
+		const undefinedQuality = exportedPrompt({ quality: undefined });
+		expect(diffImportEntry(defined, undefinedQuality).fieldChanges).toEqual([
+			{ field: "quality", from: 4, to: undefined },
+		]);
+		expect(diffImportEntry(undefinedQuality, defined).fieldChanges).toEqual([
+			{ field: "quality", from: undefined, to: 4 },
+		]);
+	});
+
+	it("reports identical: false with no field changes when only the body differs", () => {
+		const existing = exportedPrompt({ body: "line1" });
+		const incoming = exportedPrompt({ body: "line1\nline2" });
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([]);
+		expect(diff.identical).toBe(false);
+	});
+
+	it("surfaces created/updated differences as field changes", () => {
+		const existing = exportedPrompt({ created: "2026-01-01", updated: "2026-06-01" });
+		const incoming = exportedPrompt({ created: "2026-01-02", updated: "2026-06-02" });
+		const diff = diffImportEntry(existing, incoming);
+		expect(diff.fieldChanges).toEqual([
+			{ field: "created", from: "2026-01-01", to: "2026-01-02" },
+			{ field: "updated", from: "2026-06-01", to: "2026-06-02" },
+		]);
 	});
 });
 
