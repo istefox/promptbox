@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
 	findConflictingVariableNames,
 	hasMalformedPlaceholders,
+	isContextVariable,
+	matchPlaceholders,
 	parsePlaceholders,
 	resolvePlaceholders,
 } from "../src/domain/placeholders";
@@ -129,5 +131,55 @@ describe("findConflictingVariableNames (L2)", () => {
 
 	it("flags a conflict between an option list and a plain default for the same name", () => {
 		expect(findConflictingVariableNames("{{t|a,b}} {{t|a}}")).toEqual(["t"]);
+	});
+});
+
+describe("matchPlaceholders", () => {
+	it("returns raw text, start/end offsets, and the parsed variable for each match", () => {
+		const body = "Hi {{name}}!";
+		expect(matchPlaceholders(body)).toEqual([
+			{ raw: "{{name}}", start: 3, end: 11, variable: { name: "name", defaultValue: "", hint: "" } },
+		]);
+	});
+
+	it("returns a null variable for malformed constructs, still with correct offsets", () => {
+		const body = "{{}} {{known}}";
+		const matches = matchPlaceholders(body);
+		expect(matches).toHaveLength(2);
+		expect(matches[0]).toEqual({ raw: "{{}}", start: 0, end: 4, variable: null });
+		expect(matches[1]?.variable?.name).toBe("known");
+	});
+
+	it("returns one entry per occurrence, not deduplicated by name", () => {
+		const matches = matchPlaceholders("{{who}} and {{who}}");
+		expect(matches).toHaveLength(2);
+		expect(matches[0]?.variable?.name).toBe("who");
+		expect(matches[1]?.variable?.name).toBe("who");
+	});
+});
+
+describe("isContextVariable (FR-10.1)", () => {
+	it("recognizes the four supported reserved names", () => {
+		expect(isContextVariable("@selection")).toBe(true);
+		expect(isContextVariable("@title")).toBe(true);
+		expect(isContextVariable("@date")).toBe(true);
+		expect(isContextVariable("@clipboard")).toBe(true);
+	});
+
+	it("rejects ordinary names", () => {
+		expect(isContextVariable("selection")).toBe(false);
+		expect(isContextVariable("")).toBe(false);
+		expect(isContextVariable("client")).toBe(false);
+	});
+
+	it("reserves the whole @ namespace, not just the four known names", () => {
+		expect(isContextVariable("@")).toBe(true);
+		expect(isContextVariable("@unknown")).toBe(true);
+	});
+
+	it("stays agnostic of @: the parser still returns @-names unchanged, ignoring is the caller's job", () => {
+		expect(parsePlaceholders("{{@title|fallback|hint}}")).toEqual([
+			{ name: "@title", defaultValue: "fallback", hint: "hint" },
+		]);
 	});
 });

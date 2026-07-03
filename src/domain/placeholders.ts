@@ -54,6 +54,39 @@ export function resolvePlaceholders(body: string, values: Record<string, string>
 	});
 }
 
+/**
+ * A placeholder name starting with `@` is a reserved context variable (FR-10.1).
+ * The whole `@` namespace is reserved, not just the four names currently resolved.
+ */
+export function isContextVariable(name: string): boolean {
+	return name.startsWith("@");
+}
+
+export interface PlaceholderMatch {
+	raw: string;
+	start: number;
+	end: number;
+	variable: PromptVariable | null;
+}
+
+/**
+ * Positions alongside `parsePlaceholders`' parse result, for span-based
+ * composition with other body syntaxes (e.g. wikilink transclusion, FR-12.6).
+ */
+export function matchPlaceholders(body: string): PlaceholderMatch[] {
+	const matches: PlaceholderMatch[] = [];
+	for (const match of body.matchAll(PLACEHOLDER_RE)) {
+		const start = match.index ?? 0;
+		matches.push({
+			raw: match[0],
+			start,
+			end: start + match[0].length,
+			variable: parseSegments(match[1] ?? ""),
+		});
+	}
+	return matches;
+}
+
 function optionsEqual(a: string[] | undefined, b: string[] | undefined): boolean {
 	if (a === undefined || b === undefined) return a === b;
 	return a.length === b.length && a.every((v, i) => v === b[i]);
