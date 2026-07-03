@@ -153,3 +153,10 @@ node_modules/
 
 # Session-local memory buffers
 .remember/
+
+# Claude Code session-local artifacts (keep .claude/nightly-autopilot.yml tracked)
+.claude/context.md
+.claude/nightly-report.json
+.claude/nightly-state/
+.claude/test-cmd
+.claude/ui-polish-backlog.md
