@@ -3,7 +3,7 @@ import { isContextVariable, parsePlaceholders } from "../domain/placeholders";
 import { assembleBody, detectWikilinks } from "../domain/transclusion";
 import { resolveContextVariables } from "./context-variables";
 import { resolveWikilinks, TransclusionPreviewModal } from "./transclusion-modal";
-import { VariableModal } from "./variable-modal";
+import { VariableModal, type VariableModalDeps } from "./variable-modal";
 
 /** Clipboard write with an explicit, mobile-safe failure path (NFR-3). */
 export async function writeClipboard(text: string, label: string): Promise<void> {
@@ -27,7 +27,13 @@ export async function writeClipboard(text: string, label: string): Promise<void>
  * zero new UI, and one whose placeholders are all context variables copies
  * without a modal once resolution settles (FR-4.4).
  */
-export function copyWithVariables(app: App, title: string, body: string, sourcePath: string): void {
+export function copyWithVariables(
+	app: App,
+	title: string,
+	body: string,
+	sourcePath: string,
+	deps: VariableModalDeps,
+): void {
 	async function run(): Promise<void> {
 		const links = detectWikilinks(body);
 		const { resolved, unresolved } = await resolveWikilinks(app, sourcePath, links);
@@ -49,7 +55,7 @@ export function copyWithVariables(app: App, title: string, body: string, sourceP
 					void writeClipboard(assembleBody(body, resolved, contextValues), title).then(afterCopy);
 					return;
 				}
-				new VariableModal(app, userVars, (userValues) => {
+				new VariableModal(app, userVars, deps, (userValues) => {
 					void writeClipboard(assembleBody(body, resolved, { ...contextValues, ...userValues }), title).then(
 						afterCopy,
 					);

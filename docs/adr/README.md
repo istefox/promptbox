@@ -10,3 +10,4 @@ Decisions are numbered, immutable once accepted (superseded by new ADRs, never e
 | [0004](0004-favorites.md) | Favorites as a silent-tolerant Prompt field with orthogonal query flags | Accepted |
 | [0005](0005-context-variables.md) | Reserved `@` namespace for context variables, resolved via an isolated UI-layer resolver | Proposed |
 | [0007](0007-vault-transclusion.md) | Wikilink transclusion at copy time via a pure single-pass body assembler | Accepted |
+| [0009](0009-variable-profiles.md) | Store variable profiles in plugin settings behind a pure domain layer | Accepted |

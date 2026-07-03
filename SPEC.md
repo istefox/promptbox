@@ -1,42 +1,39 @@
-# SPEC — Vault-content transclusion (Phase 1.5, from competitive-analysis §4 P2b)
+# SPEC — Saved variable profiles (Phase 1.5, from competitive-analysis §6 N2)
 
-**Topic slug:** vault-transclusion
+**Topic slug:** variable-profiles
 
 | | |
 |---|---|
-| Source | `docs/competitive-analysis.md` §4 P2b (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
-| Depends on | Tier 4 copy flow (met); ADR-0001, ADR-0002 binding |
-| Effort | L |
+| Source | `docs/competitive-analysis.md` §6 N2 (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
+| Depends on | Tier 4 variable modal (met); ADR-0001, ADR-0002 binding |
+| Effort | M |
 
 ## 1. Purpose
 
-Let a prompt body embed the content of other vault notes via `[[wikilink]]` references, resolved at copy time with an explicit preview step. Prompts become composable from vault knowledge while notes remain the single source of truth.
+Named value sets for placeholders (e.g. profile "Acme" fills `client`, `tone`, `context`), selectable in the variable modal. Recurring answers stop being retyped. Profiles are ephemeral input aids stored in `data.json`, never in the notes — notes stay the single source of truth for prompts.
 
 ## 2. Requirements
 
-### FR-12 Transclusion at copy time (MUST)
+### FR-14 Variable profiles (MUST)
 
-- FR-12.1 During "copy with variables", `[[target]]` and `[[target|alias]]` references in the body resolve to the linked note's content. Resolution uses Obsidian's link-resolution API (metadata cache), never manual path guessing. Aliased links resolve to the target's content (the alias is display-only).
-- FR-12.2 Depth cap 1: linked notes are inserted as plain text; wikilinks inside the inserted content are NOT recursively resolved (left verbatim). No cycle can therefore recurse, but a self-reference `[[own note]]` still resolves once to its own body.
-- FR-12.3 The inserted content is the linked note's body with frontmatter stripped, matching the existing copy semantics (FR-4.3).
-- FR-12.4 Unresolvable links (no matching note) are left verbatim in the output and reported in a single Notice naming them. Never a crash (NFR-8).
-- FR-12.5 Preview step: when the body contains at least one resolvable wikilink, the copy flow shows a confirmation step listing each link, its target, and the inserted size (characters); the user confirms or cancels. Bodies with zero wikilinks copy exactly as today, no new step. A total-size warning appears above 50,000 characters.
-- FR-12.6 Order of operations: links resolve first, then placeholder substitution runs on the ORIGINAL body's placeholders only — placeholders inside transcluded content are not collected and not substituted (consistent with the no-reparse rule of ADR-0005 where applicable on this branch: resolved/inserted text is never re-parsed).
-- FR-12.7 Copy raw (FR-4.5) bypasses resolution entirely: wikilinks reach the clipboard verbatim.
+- FR-14.1 Data model in plugin settings (`data.json`): a list of profiles, each `{ name: string, values: Record<string,string> }`. Profile names unique (case-insensitive); values map placeholder names to fill values. Tolerant load: malformed entries dropped silently, never a crash (NFR-8 pattern).
+- FR-14.2 Variable modal: when at least one saved profile has at least one key matching the prompt's variables, a profile dropdown appears at the top ("No profile" default). Selecting a profile prefills matching fields, overwriting their current content; non-matching fields keep their values; the user can still edit every field afterwards. Selecting "No profile" changes nothing.
+- FR-14.3 Save-as-profile: a "Save as profile…" action in the variable modal stores the currently entered values under a new or existing name (explicit user action; name prompt inline in the modal). Saving under an existing name overwrites that profile after the same explicit action.
+- FR-14.4 Management in settings tab: list existing profiles with rename and delete controls (delete with confirmation), following the existing taxonomy-editor patterns (FR-8.2 style).
+- FR-14.5 Profile application is a pure domain function (given profile values + current field values + variable names → next field values), vitest-covered.
 
 ## 3. Acceptance criteria
 
-- Body `Context:\n[[style-guide]]\n\nTask: {{task}}` with an existing `style-guide.md`: copy shows the preview (1 link, target path, size), then the variable modal for `task`; clipboard contains the style guide's body inlined.
-- `[[missing-note]]` stays verbatim in the clipboard and one Notice names it.
-- A transcluded note containing `[[other]]` keeps that inner link verbatim (depth 1).
-- Copy raw yields the body byte-identical, links untouched.
-- A prompt with no wikilinks copies with zero new UI.
+- Profile "Acme" `{client: "Acme Corp", tone: "formal"}`; prompt with `{{client}}` and `{{topic}}`: dropdown appears; selecting "Acme" fills `client`, leaves `topic`; clipboard reflects edits made after application.
+- Prompt with no matching variable names: no dropdown rendered.
+- "Save as profile…" with name "Acme" after editing values updates the stored profile.
+- Deleting a profile in settings asks confirmation and removes it from `data.json`.
+- Malformed profile entry in `data.json` (missing name) is ignored without breaking the modal.
 
 ## 4. Constraints
 
-- Link detection is a pure domain function (`src/domain/`), vitest-covered; vault resolution and preview UI live in the UI layer (repo testing-boundary convention). Native primitives only (ADR-0002): the preview is a `Modal`. Desktop and mobile. No network. `.claude/test-cmd` is authoritative and must not change.
-- Embed syntax `![[target]]` is treated identically to `[[target]]` in this feature.
+- Profiles live exclusively in `data.json` (spec §3.3: the settings file is the only plugin-owned artifact outside notes). Never written into frontmatter or note bodies. Native primitives (ADR-0002); dropdown and buttons follow existing modal patterns; mobile touch targets. No network. `.claude/test-cmd` is authoritative and must not change.
 
 ## 5. Out of scope
 
-Recursive resolution (depth > 1), block/heading references (`[[note#heading]]`, `[[note^block]]` resolve as unresolvable → verbatim), placeholder collection inside transcluded content, Templater interop (NG-7).
+Per-prompt default profiles, profile export/import (JSON transfer schema stays v1 untouched), context variables interplay (sibling branch), multi-profile merge.

@@ -1,5 +1,7 @@
-import { PluginSettingTab, setIcon, Setting, type App } from "obsidian";
+import { Notice, PluginSettingTab, setIcon, Setting, type App } from "obsidian";
+import { findProfileIndex } from "../domain/variable-profiles";
 import type PromptboxPlugin from "../main";
+import { ConfirmModal } from "./confirm-modal";
 import { FolderSuggest } from "./suggest";
 
 /** Plugin settings tab (FR-8). */
@@ -48,6 +50,8 @@ export class PromptboxSettingTab extends PluginSettingTab {
 
 		this.renderTaxonomyEditor("list", "Type values", "typeValues", true);
 		this.renderTaxonomyEditor("list-tree", "Category values", "categoryValues", false);
+
+		this.renderProfilesEditor();
 
 		this.iconRow("keyboard", "Hotkeys")
 			.setDesc("Promptbox commands ship without default key bindings. Assign them under Settings → Hotkeys.");
@@ -122,5 +126,53 @@ export class PromptboxSettingTab extends PluginSettingTab {
 					this.display();
 				}),
 			);
+	}
+
+	/** FR-14.4: rename/delete saved variable profiles, following the taxonomy-editor pattern. */
+	private renderProfilesEditor(): void {
+		const { containerEl } = this;
+		this.iconRow("user", "Variable profiles").setHeading();
+
+		const profiles = this.plugin.settings.profiles;
+		if (profiles.length === 0) {
+			containerEl.createEl("p", { text: "No saved profiles yet. Save one from the variable modal." });
+			return;
+		}
+
+		profiles.forEach((profile, i) => {
+			const row = new Setting(containerEl);
+			row.setClass("promptbox-taxo-row");
+			row.addText((t) => {
+				t.setValue(profile.name).onChange((v) => {
+					const trimmed = v.trim();
+					if (trimmed === "") return;
+					const existing = findProfileIndex(profiles, trimmed);
+					if (existing !== -1 && existing !== i) {
+						new Notice(`A profile named "${trimmed}" already exists.`);
+						return;
+					}
+					profiles[i]!.name = trimmed;
+					void this.plugin.saveSettings();
+				});
+			});
+			row.addExtraButton((b) =>
+				b
+					.setIcon("trash-2")
+					.setTooltip("Delete")
+					.onClick(() => {
+						new ConfirmModal(
+							this.app,
+							"Delete profile",
+							`Delete the profile "${profile.name}"? This cannot be undone.`,
+							"Delete",
+							() => {
+								profiles.splice(i, 1);
+								void this.plugin.saveSettings();
+								this.display();
+							},
+						).open();
+					}),
+			);
+		});
 	}
 }
