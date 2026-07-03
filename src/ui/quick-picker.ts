@@ -1,5 +1,6 @@
-import { FuzzySuggestModal, type App } from "obsidian";
+import { FuzzySuggestModal, setIcon, type App, type FuzzyMatch } from "obsidian";
 import type { Prompt } from "../domain/prompt";
+import { rankFavoritesFirst } from "../domain/query";
 import type PromptboxPlugin from "../main";
 import { copyRaw, copyWithVariables } from "./copy";
 
@@ -34,12 +35,29 @@ export class PromptQuickPicker extends FuzzySuggestModal<Prompt> {
 		return `${prompt.title} ${prompt.category} ${prompt.tags.join(" ")} ${prompt.useCase}`;
 	}
 
+	override getSuggestions(query: string): FuzzyMatch<Prompt>[] {
+		return rankFavoritesFirst(
+			super.getSuggestions(query),
+			(m) => m.match.score,
+			(m) => m.item.favorite,
+		);
+	}
+
+	override renderSuggestion(match: FuzzyMatch<Prompt>, el: HTMLElement): void {
+		super.renderSuggestion(match, el);
+		if (match.item.favorite) {
+			const star = createSpan({ cls: "promptbox-picker__favorite" });
+			setIcon(star, "star");
+			el.prepend(star);
+		}
+	}
+
 	override onChooseItem(prompt: Prompt, evt: MouseEvent | KeyboardEvent): void {
 		const body = this.plugin.index.getBody(prompt.path);
 		if (this.rawMode || evt.metaKey || evt.ctrlKey) {
 			copyRaw(prompt.title, body);
 		} else {
-			copyWithVariables(this.app, prompt.title, body);
+			copyWithVariables(this.app, prompt.title, body, prompt.path, this.plugin.variableModalDeps());
 		}
 	}
 }
