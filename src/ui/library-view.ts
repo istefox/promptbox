@@ -112,7 +112,7 @@ export class PromptboxLibraryView extends ItemView {
 		}
 		const actions = header.createDiv({ cls: "promptbox-item__actions" });
 		this.addItemAction(actions, "braces", "Copy with variables", () =>
-			copyWithVariables(this.app, prompt.title, this.plugin.index.getBody(prompt.path)),
+			copyWithVariables(this.app, prompt.title, this.plugin.index.getBody(prompt.path), prompt.path),
 		);
 		this.addItemAction(actions, "clipboard-copy", "Copy raw", () =>
 			copyRaw(prompt.title, this.plugin.index.getBody(prompt.path)),

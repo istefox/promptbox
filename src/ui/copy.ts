@@ -1,6 +1,8 @@
 import { Notice, type App } from "obsidian";
-import { isContextVariable, parsePlaceholders, resolvePlaceholders } from "../domain/placeholders";
+import { isContextVariable, parsePlaceholders } from "../domain/placeholders";
+import { assembleBody, detectWikilinks } from "../domain/transclusion";
 import { resolveContextVariables } from "./context-variables";
+import { resolveWikilinks, TransclusionPreviewModal } from "./transclusion-modal";
 import { VariableModal } from "./variable-modal";
 
 /** Clipboard write with an explicit, mobile-safe failure path (NFR-3). */
@@ -16,33 +18,61 @@ export async function writeClipboard(text: string, label: string): Promise<void>
 }
 
 /**
- * The FR-4 copy flow: prompts without placeholders copy immediately (FR-4.4),
- * otherwise the variable form collects values and the resolved body is copied
- * on confirm; cancel copies nothing (FR-4.2, FR-4.3). Reserved `@`-prefixed
- * names are resolved from workspace state instead of the modal and never
- * reach it (FR-10); a prompt whose only placeholders are context variables
- * copies immediately once resolution settles, no modal.
+ * The FR-4/FR-10/FR-12 copy flow: wikilinks resolve first (FR-12.1), with a
+ * preview step when at least one resolves (FR-12.5); then placeholders on the
+ * ORIGINAL body only (FR-12.6). Reserved `@`-prefixed names resolve from
+ * workspace state and never reach the modal (FR-10); remaining variables go
+ * through the variable form, and the assembled body is copied on confirm;
+ * cancel copies nothing (FR-4.2, FR-4.3). A body with zero wikilinks gets
+ * zero new UI, and one whose placeholders are all context variables copies
+ * without a modal once resolution settles (FR-4.4).
  */
-export function copyWithVariables(app: App, title: string, body: string): void {
-	const variables = parsePlaceholders(body);
-	if (variables.length === 0) {
-		void writeClipboard(body, title);
-		return;
-	}
-	const contextVars = variables.filter((v) => isContextVariable(v.name));
-	const userVars = variables.filter((v) => !isContextVariable(v.name));
-	void resolveContextVariables(
-		app,
-		contextVars.map((v) => v.name),
-	).then((contextValues) => {
-		if (userVars.length === 0) {
-			void writeClipboard(resolvePlaceholders(body, contextValues), title);
-			return;
+export function copyWithVariables(app: App, title: string, body: string, sourcePath: string): void {
+	async function run(): Promise<void> {
+		const links = detectWikilinks(body);
+		const { resolved, unresolved } = await resolveWikilinks(app, sourcePath, links);
+
+		const finish = (): void => {
+			const variables = parsePlaceholders(body);
+			const contextVars = variables.filter((v) => isContextVariable(v.name));
+			const userVars = variables.filter((v) => !isContextVariable(v.name));
+			const afterCopy = (): void => {
+				if (unresolved.length > 0) {
+					new Notice(`Promptbox: unresolved link(s): ${unresolved.join(", ")}`);
+				}
+			};
+			void resolveContextVariables(
+				app,
+				contextVars.map((v) => v.name),
+			).then((contextValues) => {
+				if (userVars.length === 0) {
+					void writeClipboard(assembleBody(body, resolved, contextValues), title).then(afterCopy);
+					return;
+				}
+				new VariableModal(app, userVars, (userValues) => {
+					void writeClipboard(assembleBody(body, resolved, { ...contextValues, ...userValues }), title).then(
+						afterCopy,
+					);
+				}).open();
+			});
+		};
+
+		if (resolved.size > 0) {
+			const occurrences = new Map<string, number>();
+			for (const link of links) occurrences.set(link.target, (occurrences.get(link.target) ?? 0) + 1);
+			const rows = [...resolved.entries()].map(([target, content]) => ({
+				target,
+				occurrences: occurrences.get(target) ?? 1,
+				size: content.length,
+			}));
+			const totalSize = rows.reduce((sum, row) => sum + row.size * row.occurrences, 0);
+			new TransclusionPreviewModal(app, rows, totalSize, finish).open();
+		} else {
+			finish();
 		}
-		new VariableModal(app, userVars, (userValues) => {
-			void writeClipboard(resolvePlaceholders(body, { ...contextValues, ...userValues }), title);
-		}).open();
-	});
+	}
+
+	void run();
 }
 
 /** Verbatim copy, placeholders untouched — escape hatch for other templating systems (FR-4.5). */

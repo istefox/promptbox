@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isContextVariable, parsePlaceholders, resolvePlaceholders } from "../src/domain/placeholders";
+import { isContextVariable, matchPlaceholders, parsePlaceholders, resolvePlaceholders } from "../src/domain/placeholders";
 
 describe("parsePlaceholders (FR-4.1, FR-4.2)", () => {
 	it("parses the three syntax forms", () => {
@@ -81,6 +81,30 @@ describe("resolvePlaceholders (FR-4.2, FR-4.6)", () => {
 	it("keeps raw bodies for other templating systems intact when no values are provided", () => {
 		const jinja = "{% for x in items %}{{ x }}{% endfor %}";
 		expect(resolvePlaceholders(jinja, {})).toBe(jinja);
+	});
+});
+
+describe("matchPlaceholders", () => {
+	it("returns raw text, start/end offsets, and the parsed variable for each match", () => {
+		const body = "Hi {{name}}!";
+		expect(matchPlaceholders(body)).toEqual([
+			{ raw: "{{name}}", start: 3, end: 11, variable: { name: "name", defaultValue: "", hint: "" } },
+		]);
+	});
+
+	it("returns a null variable for malformed constructs, still with correct offsets", () => {
+		const body = "{{}} {{known}}";
+		const matches = matchPlaceholders(body);
+		expect(matches).toHaveLength(2);
+		expect(matches[0]).toEqual({ raw: "{{}}", start: 0, end: 4, variable: null });
+		expect(matches[1]?.variable?.name).toBe("known");
+	});
+
+	it("returns one entry per occurrence, not deduplicated by name", () => {
+		const matches = matchPlaceholders("{{who}} and {{who}}");
+		expect(matches).toHaveLength(2);
+		expect(matches[0]?.variable?.name).toBe("who");
+		expect(matches[1]?.variable?.name).toBe("who");
 	});
 });
 

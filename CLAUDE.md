@@ -37,6 +37,18 @@ npm run lint     # eslint
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
 
+## Decisions from the vault-transclusion chain (ADR-0007)
+
+Wikilink transclusion at copy time: `[[target]]`/`![[target]]` resolve to the linked note's body (frontmatter stripped), depth cap 1, preview modal with sizes and 50k warning, copy-raw bypass.
+
+Key architectural decisions:
+- **Single-pass span assembler:** `assembleBody` splices wikilink and placeholder spans over the pristine original body in one pass; inserted content is never re-scanned for links or placeholders (FR-12.6).
+- **`copyWithVariables` gains `sourcePath`:** required for `getFirstLinkpathDest` disambiguation with duplicate basenames; the only signature change, 2 call sites.
+- **Resolution + preview in `src/ui/transclusion-modal.ts`;** detection stays pure in `src/domain/transclusion.ts` (vitest-covered).
+- **Heading/block refs (`#`, `^`) are unresolvable by design** and share the unresolved-links Notice.
+
+Detail: `docs/adr/0007-vault-transclusion.md`.
+
 ## Decisions from the favorites chain (ADR-0004)
 
 Favorites: `favorite` boolean frontmatter field with star toggle, filter chip, favorites-first sort.

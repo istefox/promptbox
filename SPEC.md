@@ -1,44 +1,42 @@
-# SPEC — Context variables (Phase 1.5, from competitive-analysis §4 P1)
+# SPEC — Vault-content transclusion (Phase 1.5, from competitive-analysis §4 P2b)
 
-**Topic slug:** context-variables
+**Topic slug:** vault-transclusion
 
 | | |
 |---|---|
-| Source | `docs/competitive-analysis.md` §4 P1 (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
-| Depends on | Tier 4 placeholder parser and copy flow (met); ADR-0001, ADR-0002 binding |
-| Effort | M |
+| Source | `docs/competitive-analysis.md` §4 P2b (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
+| Depends on | Tier 4 copy flow (met); ADR-0001, ADR-0002 binding |
+| Effort | L |
 
 ## 1. Purpose
 
-Resolve workspace context into prompts at copy time through a reserved placeholder namespace, so prompts can reference the active note, current selection, today's date, or the clipboard without manual filling. Extends FR-4 without touching its conservative contract.
+Let a prompt body embed the content of other vault notes via `[[wikilink]]` references, resolved at copy time with an explicit preview step. Prompts become composable from vault knowledge while notes remain the single source of truth.
 
 ## 2. Requirements
 
-### FR-10 Context variables (MUST)
+### FR-12 Transclusion at copy time (MUST)
 
-- FR-10.1 Reserved namespace: a placeholder whose name starts with `@` is a context variable. Supported names: `@selection`, `@title`, `@date`, `@clipboard` (lowercase, exact). A `{{@name}}` with any other `@name` is left untouched in the output, consistent with the conservative parser rule (FR-4.6).
-- FR-10.2 Resolution at copy time, from workspace state:
-  - `@selection` → current selection of the active Markdown editor; if no editor is focused or the selection is empty, resolve to the empty string and show one Notice naming the unresolved variable.
-  - `@title` → active note's basename; empty string plus Notice when no note is active.
-  - `@date` → today as `YYYY-MM-DD` (always resolvable).
-  - `@clipboard` → current clipboard text via the Obsidian-supported clipboard API; on read failure (platform restrictions), empty string plus Notice (NFR-3 pattern).
-- FR-10.3 Context variables never appear in the variable-filling modal (FR-4.2). A prompt whose only placeholders are context variables copies without any modal, after resolution. Defaults and hints on a context variable (e.g. `{{@title|fallback}}`) are ignored; the segment is treated as a plain context variable.
-- FR-10.4 Copy raw (FR-4.5) bypasses resolution entirely: `{{@anything}}` reaches the clipboard verbatim.
-- FR-10.5 Both copy entry points resolve context: library view copy action and quick picker (FR-5).
+- FR-12.1 During "copy with variables", `[[target]]` and `[[target|alias]]` references in the body resolve to the linked note's content. Resolution uses Obsidian's link-resolution API (metadata cache), never manual path guessing. Aliased links resolve to the target's content (the alias is display-only).
+- FR-12.2 Depth cap 1: linked notes are inserted as plain text; wikilinks inside the inserted content are NOT recursively resolved (left verbatim). No cycle can therefore recurse, but a self-reference `[[own note]]` still resolves once to its own body.
+- FR-12.3 The inserted content is the linked note's body with frontmatter stripped, matching the existing copy semantics (FR-4.3).
+- FR-12.4 Unresolvable links (no matching note) are left verbatim in the output and reported in a single Notice naming them. Never a crash (NFR-8).
+- FR-12.5 Preview step: when the body contains at least one resolvable wikilink, the copy flow shows a confirmation step listing each link, its target, and the inserted size (characters); the user confirms or cancels. Bodies with zero wikilinks copy exactly as today, no new step. A total-size warning appears above 50,000 characters.
+- FR-12.6 Order of operations: links resolve first, then placeholder substitution runs on the ORIGINAL body's placeholders only — placeholders inside transcluded content are not collected and not substituted (consistent with the no-reparse rule of ADR-0005 where applicable on this branch: resolved/inserted text is never re-parsed).
+- FR-12.7 Copy raw (FR-4.5) bypasses resolution entirely: wikilinks reach the clipboard verbatim.
 
 ## 3. Acceptance criteria
 
-- Body `Review {{@selection}} for {{tone|neutral}}` with text selected in an open editor: copy shows the modal only for `tone`; the clipboard contains the selected text substituted.
-- Same body, no editor focused: clipboard has empty string in place of `@selection`, one Notice names it, `tone` modal still shown.
-- Body `{{@date}}` copies instantly (no modal) with today's date.
-- Copy raw on `{{@title}}` yields `{{@title}}` verbatim.
-- `{{@unknown}}` passes through untouched in resolved copy.
+- Body `Context:\n[[style-guide]]\n\nTask: {{task}}` with an existing `style-guide.md`: copy shows the preview (1 link, target path, size), then the variable modal for `task`; clipboard contains the style guide's body inlined.
+- `[[missing-note]]` stays verbatim in the clipboard and one Notice names it.
+- A transcluded note containing `[[other]]` keeps that inner link verbatim (depth 1).
+- Copy raw yields the body byte-identical, links untouched.
+- A prompt with no wikilinks copies with zero new UI.
 
 ## 4. Constraints
 
-- Parser stays a pure function (`src/domain/placeholders.ts`); workspace resolution lives in the UI/copy layer, injected as a resolver, so domain tests need no Obsidian mocks.
-- No network (NFR-5). Native primitives (ADR-0002). Desktop and mobile; `@selection`/`@clipboard` availability differences on mobile degrade to empty-plus-Notice, never a crash (NFR-8). `.claude/test-cmd` is authoritative and must not change.
+- Link detection is a pure domain function (`src/domain/`), vitest-covered; vault resolution and preview UI live in the UI layer (repo testing-boundary convention). Native primitives only (ADR-0002): the preview is a `Modal`. Desktop and mobile. No network. `.claude/test-cmd` is authoritative and must not change.
+- Embed syntax `![[target]]` is treated identically to `[[target]]` in this feature.
 
 ## 5. Out of scope
 
-Additional context names (vault name, frontmatter fields), nested resolution, template logic (parked §4 P3a), Templater interop (NG-7).
+Recursive resolution (depth > 1), block/heading references (`[[note#heading]]`, `[[note^block]]` resolve as unresolvable → verbatim), placeholder collection inside transcluded content, Templater interop (NG-7).
