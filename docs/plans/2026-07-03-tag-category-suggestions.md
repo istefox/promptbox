@@ -11,7 +11,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
 
 ## Tasks
 
-- [ ] **Task 1 — Pure scorer domain module (TDD)**
+- [x] **Task 1 — Pure scorer domain module (TDD)**
   **Goal:** implement deterministic, case-insensitive keyword-frequency scoring per FR-11.1, as one function reused for both tags and categories.
   **Files:** create `tests/suggestions.test.ts` (write first, confirm it fails), create `src/domain/suggestions.ts` (implement to green). No other file changes in this task.
   **Contract:** `export function suggestValues(draftText: { title: string; useCase: string; body: string }, candidates: string[], selected: string[], limit: number): string[]`.
@@ -28,7 +28,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
   - empty `candidates` array returns `[]`;
   - duplicate entries in `candidates` never produce duplicate entries in the output.
 
-- [ ] **Task 2 — Tag suggestion chip row in the prompt modal**
+- [x] **Task 2 — Tag suggestion chip row in the prompt modal**
   **Goal:** a "suggested tags" chip row under the tags chips box, recomputed as the user types, click-to-apply, hidden when empty (FR-11.2, FR-11.4).
   **Files:** modify `src/ui/prompt-modal.ts`; modify `styles.css` (add one layout class for the suggestion row, e.g. mirroring `.promptbox-filters__group` + `.promptbox-filters__label`; reuse the existing `.promptbox-chip` class, unselected/neutral variant, for the pills themselves — no new chip-color CSS needed).
   **Behavior contract:**
@@ -45,7 +45,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
   4. Repeat step 1 on "Edit prompt metadata" for an existing prompt that already has tags. Confirm suggestions still compute from title and use-case (body is unavailable in edit mode by existing design, per ADR-0006) and that already-present tags never reappear as suggestions.
   5. Resize the window to a mobile-width viewport (or use Obsidian's mobile emulation). Confirm suggestion chips meet the same 44px touch target already defined for `.promptbox-chip` under `.is-mobile`.
 
-- [ ] **Task 3 — Category suggestion chip row in the prompt modal**
+- [x] **Task 3 — Category suggestion chip row in the prompt modal**
   **Goal:** a "suggested category" chip row under the category dropdown, click-to-apply, hidden when empty (FR-11.2, FR-11.4). Continues the same file edit as Task 2.
   **Files:** modify `src/ui/prompt-modal.ts` only (reuses the `.promptbox-suggestions`-style CSS class added in Task 2).
   **Behavior contract:**
@@ -60,7 +60,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
   3. Manually change the dropdown to a different configured value (not via a suggestion click). Confirm the suggestion row's exclusion updates to the newly selected value without needing a full-page reload to look right, and confirm this one discrete action is the only path that may briefly redraw the form (typing must never trigger this).
   4. Confirm a category dropdown with zero configured values, or a draft with no keyword overlap with any configured category, shows no suggestion row.
 
-- [ ] **Task 4 — Acceptance-criteria verification pass**
+- [x] **Task 4 — Acceptance-criteria verification pass**
   **Goal:** confirm the four acceptance criteria from `SPEC.md` §3 pass literally, across create and edit modes, desktop and a mobile-width emulation, with explicit attention to the focus-preservation contract from Tasks 2-3 (the one non-obvious regression risk in this feature).
   **Files:** none (verification only).
   **Test (manual smoke, scripted):**
@@ -70,7 +70,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
   - (d) empty title, use-case, and body together: both suggestion rows are fully absent, not empty-but-rendered;
   - additionally: type continuously across all three free-text fields for several seconds and confirm no loss of focus, cursor position, or scroll offset at any point (the debounced-scoped-render contract is the thing most likely to regress silently).
 
-- [ ] **Task 5 — Full regression and closeout**
+- [x] **Task 5 — Full regression and closeout**
   **Goal:** confirm the change is contract-neutral and the full suite is green; close out the roadmap entry.
   **Files:** modify `PROJECT.md` (check off "tag and category suggestions" under Phase 1.5 with a completion date, matching the existing convention used for the favorites and context-variables entries).
   **Test:** run `npm run build && npm run lint && npm test` (typecheck, production build, eslint, and the *entire* vitest suite, not only `tests/suggestions.test.ts`). Confirm `tests/draft.test.ts`, `tests/prompt.test.ts`, `tests/query.test.ts`, `tests/indexer.test.ts`, `tests/slug.test.ts`, `tests/transfer.test.ts`, `tests/placeholders.test.ts`, and the new `tests/suggestions.test.ts` all pass, since `PromptDraft` and `PromptModalDeps` are shared types this change sits next to. No call-site updates are expected: grep confirms `new PromptModal(` has exactly two call sites (`src/main.ts`, create and edit paths), both via the unchanged `modalDeps()` builder, and no exported signature changed.
