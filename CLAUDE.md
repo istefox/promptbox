@@ -36,3 +36,14 @@ npm run lint     # eslint
 - Performance target is ~1,000 prompts; list virtualization is deferred until NFR-1 measurements demand it.
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
+
+## Decisions from the prompt-linter chain (ADR-0010)
+
+On-demand lint: rules L1-L7 (malformed placeholders, conflicting defaults, empty body, missing use_case/category, duplicate titles, parser warnings), report modal + clickable card badge, never auto-fix.
+
+Key architectural decisions:
+- **One shared pass:** `lintLibrary(prompts, getBody)` runs once per command/render; results shared via a path-keyed Map for both badges and report (no O(n²) at NFR-1 scale).
+- **Badge replaced, not stacked:** the existing warning badge repoints to the lint map, same CSS, now clickable → scoped report.
+- **L1/L2 live in `placeholders.ts`** as additive exports next to the parser; L6 groups by trimmed-lowercase title AND `slugify()` key.
+
+Detail: `docs/adr/0010-prompt-linter.md`.
