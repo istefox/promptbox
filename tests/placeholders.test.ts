@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parsePlaceholders, resolvePlaceholders } from "../src/domain/placeholders";
+import {
+	findConflictingVariableNames,
+	hasMalformedPlaceholders,
+	parsePlaceholders,
+	resolvePlaceholders,
+} from "../src/domain/placeholders";
 
 describe("parsePlaceholders (FR-4.1, FR-4.2)", () => {
 	it("parses the three syntax forms", () => {
@@ -81,5 +86,48 @@ describe("resolvePlaceholders (FR-4.2, FR-4.6)", () => {
 	it("keeps raw bodies for other templating systems intact when no values are provided", () => {
 		const jinja = "{% for x in items %}{{ x }}{% endfor %}";
 		expect(resolvePlaceholders(jinja, {})).toBe(jinja);
+	});
+});
+
+describe("hasMalformedPlaceholders (L1)", () => {
+	it("detects an unclosed opening", () => {
+		expect(hasMalformedPlaceholders("Hello {{name")).toBe(true);
+	});
+
+	it("detects malformed constructs the parser silently skips", () => {
+		expect(hasMalformedPlaceholders("{{}}")).toBe(true);
+		expect(hasMalformedPlaceholders("{{ }}")).toBe(true);
+		expect(hasMalformedPlaceholders("{{|def}}")).toBe(true);
+	});
+
+	it("detects more than three pipe segments", () => {
+		expect(hasMalformedPlaceholders("{{a|b|c|d}}")).toBe(true);
+	});
+
+	it("detects the dangling brace left behind by a nested construct", () => {
+		expect(hasMalformedPlaceholders("{{a{{b}}}}")).toBe(true);
+	});
+
+	it("is false for a body with only well-formed placeholders, or none", () => {
+		expect(hasMalformedPlaceholders("{{name|def|hint}} well-formed")).toBe(false);
+		expect(hasMalformedPlaceholders("no placeholders here")).toBe(false);
+	});
+});
+
+describe("findConflictingVariableNames (L2)", () => {
+	it("flags a name whose occurrences disagree on defaultValue", () => {
+		expect(findConflictingVariableNames("{{a|x}} … {{a|y}}")).toEqual(["a"]);
+	});
+
+	it("does not flag repeated occurrences with the same value", () => {
+		expect(findConflictingVariableNames("{{a|x}} {{a|x}}")).toEqual([]);
+	});
+
+	it("flags two independently-conflicting names in first-appearance order", () => {
+		expect(findConflictingVariableNames("{{b|1}} {{a|x}} {{b|2}} {{a|y}}")).toEqual(["b", "a"]);
+	});
+
+	it("flags a conflict between an option list and a plain default for the same name", () => {
+		expect(findConflictingVariableNames("{{t|a,b}} {{t|a}}")).toEqual(["t"]);
 	});
 });

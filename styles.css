@@ -86,6 +86,7 @@
 .promptbox-item__warning {
 	color: var(--text-warning);
 	display: inline-flex;
+	cursor: pointer;
 }
 
 .promptbox-item__quality {
