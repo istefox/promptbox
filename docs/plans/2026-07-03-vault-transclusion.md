@@ -11,7 +11,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
 
 ## Tasks
 
-- [ ] **Task 1 — Pure wikilink detection and single-pass body assembler (TDD)**
+- [x] **Task 1 — Pure wikilink detection and single-pass body assembler (TDD)**
   **Goal:** the one place FR-12.6's "resolved/inserted text is never re-parsed" invariant is actually enforced. Detection and assembly are pure, Obsidian-free, and exhaustively vitest-covered per ADR-0007's chosen design (single-pass span merge over the pristine original body, not two sequential regex passes).
   **Files:** create `tests/transclusion.test.ts` (write first, confirm red); create `src/domain/transclusion.ts` (implement to green); modify `src/domain/placeholders.ts` (additive only: new `PlaceholderMatch` interface and `matchPlaceholders(body): PlaceholderMatch[]` export; `parsePlaceholders`/`resolvePlaceholders`'s existing signatures, behavior, and exports do not change); modify `tests/placeholders.test.ts` (add one new `describe("matchPlaceholders")` block; every pre-existing case in the file must still pass unmodified, run `npm test` to confirm before moving on).
   **Contract:**
@@ -29,7 +29,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
   - the overlap tie-break: a placeholder whose hint segment contains a `[[link]]`-shaped substring resolves as one placeholder replacement, the nested bracket text does not separately reappear; and the mirror case, a link whose alias contains a `{{placeholder}}`-shaped substring resolves as one link replacement;
   - a body with zero wikilinks and one or more placeholders: `assembleBody(body, new Map(), values)` produces byte-identical output to `resolvePlaceholders(body, values)` for the same inputs (proves no behavior change on the pre-existing fast path).
 
-- [ ] **Task 2 — Vault-side resolution and the preview modal (UI layer)**
+- [x] **Task 2 — Vault-side resolution and the preview modal (UI layer)**
   **Goal:** turn detected wikilinks into real content (or a documented "unresolved" outcome) using only the official metadata-cache API, and give the user a confirm/cancel preview before anything is inserted (FR-12.1, FR-12.5).
   **Files:** create `src/ui/transclusion-modal.ts` (new: `resolveWikilinks`, `TransclusionPreviewModal`); modify `styles.css` (add a `.promptbox-transclusion` rule set: row list, size text, a warning line reusing the existing `--text-warning` variable already used by `.promptbox-item__warning`; reuse `.promptbox-modal`/`.promptbox-modal--wide` for the container, no new modal-chrome CSS needed).
   **Contract:**
@@ -40,7 +40,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
   2. A body linking a note whose content exceeds 50,000 characters (or the same link repeated enough times to cross that total): the warning line appears; Continue is still clickable.
   3. A body with `[[missing-note]]` only (no note by that name in the vault): the modal never opens at all (zero resolvable links, FR-12.5), confirmed separately in Task 3's smoke pass together with the Notice behavior.
 
-- [ ] **Task 3 — Wire the orchestration into `copyWithVariables`**
+- [x] **Task 3 — Wire the orchestration into `copyWithVariables`**
   **Goal:** implement FR-12's end-to-end sequencing (links resolve first, preview if applicable, then the existing placeholder flow, unchanged for bodies with no wikilinks) inside the single existing entry point, with the one narrowly-scoped signature change ADR-0007 calls out, and thread it through both copy entry points.
   **Files:** modify `src/ui/copy.ts` (`copyWithVariables` gains a required fourth parameter `sourcePath: string`; `copyRaw` is not touched at all); modify `src/ui/library-view.ts` (its one `copyWithVariables(...)` call gains `prompt.path` as a fourth argument); modify `src/ui/quick-picker.ts` (same, its one non-raw-mode `copyWithVariables(...)` call gains `prompt.path`). Grep confirms these are the only two call sites of `copyWithVariables` in `src/`; `copyRaw`'s two call sites (same two files) are unaffected.
   **Contract:** `copyWithVariables(app, title, body, sourcePath): void` keeps a synchronous, `void`-returning exported signature (no call site needs a new `void` prefix); its body becomes `void run()` where `run` is a new internal `async` function, the same fire-and-forget idiom `main.ts`'s `exportPrompts` call already uses. Inside `run`: `detectWikilinks(body)` → `resolveWikilinks(app, sourcePath, links)` → if `resolved.size > 0`, open `TransclusionPreviewModal` first, its `onConfirm` proceeds to the existing `parsePlaceholders(body)` step (unchanged call, unchanged input, the original body); if `resolved.size === 0`, proceed to that same step directly (no modal, matching FR-12.5's "zero new UI" for a body with no *resolvable* links, even if it has unresolvable ones). From there: zero placeholders → `writeClipboard(assembleBody(body, resolved, {}), title)` immediately; one or more → open the existing `VariableModal` unchanged, on submit `writeClipboard(assembleBody(body, resolved, values), title)`. After a successful clipboard write (not before, and not on a cancelled preview), fire one additional `new Notice(...)` naming every entry in `unresolved`, only when that list is non-empty.
@@ -51,7 +51,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
   4. A body mixing one resolvable link and one heading-reference link `[[note#Section]]`: preview lists only the resolvable one; after Continue and copy, the Notice names the heading-reference target, and the clipboard contains `[[note#Section]]` verbatim.
   5. Cancel the preview modal on a body with a resolvable link: confirm nothing is copied and no Notice of any kind fires.
 
-- [ ] **Task 4 — Non-regression and acceptance-criteria verification pass**
+- [x] **Task 4 — Non-regression and acceptance-criteria verification pass**
   **Goal:** confirm the parts of the flow that must not change did not change, and that `SPEC.md` §3's five acceptance criteria pass literally, in one dedicated verification pass (no new code).
   **Files:** none.
   **Test (manual smoke, scripted against `SPEC.md` §3):**
@@ -62,7 +62,7 @@ TDD where the target is a pure domain function (Task 1: vitest, red before green
   - (d) copy raw yields the body byte-identical, links and placeholders both untouched;
   - (e) a prompt with no wikilinks copies with zero new UI, confirmed on both the library view and the quick picker entry points.
 
-- [ ] **Task 5 — Full regression gate and closeout**
+- [x] **Task 5 — Full regression gate and closeout**
   **Goal:** confirm the change set is contract-neutral outside the two intentionally-changed call sites, the full suite is green, and the roadmap and ADR index reflect the completed feature.
   **Files:** modify `docs/adr/README.md` (add the `0007-vault-transclusion` index row, following the existing table format); modify `PROJECT.md` (check off "vault-content transclusion" under Phase 1.5 with a completion date, matching the convention already used for the three preceding Phase 1.5 entries).
   **Test:** run `npm run build && npm run lint && npm test` (typecheck, production build, eslint, and the *entire* vitest suite, not only the new file). Confirm `tests/draft.test.ts`, `tests/indexer.test.ts`, `tests/perf.test.ts`, `tests/placeholders.test.ts`, `tests/prompt.test.ts`, `tests/query.test.ts`, `tests/slug.test.ts`, `tests/transfer.test.ts`, and the new `tests/transclusion.test.ts` all pass. Re-confirm by grep that `copyWithVariables(` has exactly two call sites in `src/` (`library-view.ts`, `quick-picker.ts`), both now passing four arguments, and that `copyRaw(` still has exactly two, both unchanged, no other caller of either function exists anywhere in `src/`.

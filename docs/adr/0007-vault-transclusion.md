@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed |
+| Status | Accepted |
 | Date | 3 Jul 2026 |
 | Deciders | Stefano Ferri |
 | Related | `SPEC.md` (vault-transclusion), `docs/competitive-analysis.md` §4 P2b, ADR-0001, ADR-0002, ADR-0005 (sibling branch, cited for a directly analogous pattern only) |

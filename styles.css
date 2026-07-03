@@ -328,6 +328,27 @@
 	flex: 1;
 }
 
+/* Transclusion preview modal (FR-12.5) */
+.promptbox-transclusion__list {
+	margin: 0 0 var(--size-4-2);
+	padding-left: var(--size-4-4);
+}
+
+.promptbox-transclusion__row {
+	overflow-wrap: anywhere;
+	font-size: var(--font-ui-small);
+}
+
+.promptbox-transclusion__total {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.promptbox-transclusion__warning {
+	color: var(--text-warning);
+	font-size: var(--font-ui-small);
+}
+
 /* Card refinements (backlog 12, 15) */
 .promptbox-item__header .promptbox-item__actions {
 	margin: 0 0 0 var(--size-4-2);
