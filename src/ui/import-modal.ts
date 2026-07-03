@@ -1,7 +1,8 @@
 import { Modal, Notice, Setting, TFile, type App } from "obsidian";
-import { validateImport, type ImportPolicy } from "../domain/transfer";
+import { validateImport, type ExportDoc, type ImportPolicy } from "../domain/transfer";
 import type PromptboxPlugin from "../main";
-import { runImport } from "../storage/transfer-io";
+import { buildOverwritePreview, runImport } from "../storage/transfer-io";
+import { ImportPreviewModal } from "./import-preview-modal";
 import { JsonFileSuggest } from "./suggest";
 
 /** Import prompts from a versioned JSON export (FR-7.3). */
@@ -97,7 +98,19 @@ export class ImportModal extends Modal {
 			this.showErrors(result.errors);
 			return;
 		}
-		const summary = await runImport(this.app, this.plugin.settings.promptsFolder, result.doc, this.policy);
+		const folder = this.plugin.settings.promptsFolder;
+		if (this.policy === "overwrite") {
+			const diffs = await buildOverwritePreview(this.app, folder, result.doc);
+			if (diffs.length > 0) {
+				new ImportPreviewModal(this.app, diffs, () => void this.runAndReport(folder, result.doc, this.policy)).open();
+				return;
+			}
+		}
+		await this.runAndReport(folder, result.doc, this.policy);
+	}
+
+	private async runAndReport(folder: string, doc: ExportDoc, policy: ImportPolicy): Promise<void> {
+		const summary = await runImport(this.app, folder, doc, policy);
 		this.close();
 		new Notice(
 			`Import done: ${summary.created} created, ${summary.skipped} skipped, ${summary.overwritten} overwritten, ${summary.failed} failed.`,

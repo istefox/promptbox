@@ -8,7 +8,7 @@ Full-suite command (authoritative, `.claude/test-cmd`, unchanged by this feature
 
 ---
 
-- [ ] **Task 1 — Domain diff engine (`src/domain/transfer.ts`, TDD)**
+- [x] **Task 1 — Domain diff engine (`src/domain/transfer.ts`, TDD)**
 
   Goal: a pure, vitest-covered function that turns an existing conflicting prompt (current metadata + body) and an incoming `ExportedPrompt` into a structured diff, plus the line-based body comparison it depends on. Also extract the reusable "Prompt + body → transfer shape" mapper so the existing side of the diff and `buildExport`'s output come from one place.
 
@@ -27,7 +27,7 @@ Full-suite command (authoritative, `.claude/test-cmd`, unchanged by this feature
   - Metadata identical but body changed → `identical: false`, `fieldChanges: []`.
   - `created`/`updated` differing → surfaced as field changes (deliberate: mirrors what `applyEntry` actually overwrites, see ADR-0011).
 
-- [ ] **Task 2 — Storage orchestration (`src/storage/transfer-io.ts`, manual smoke)**
+- [x] **Task 2 — Storage orchestration (`src/storage/transfer-io.ts`, manual smoke)**
 
   Goal: compute the diff list for every planned overwrite conflict, reading current vault state, without writing anything.
 
@@ -38,7 +38,7 @@ Full-suite command (authoritative, `.claude/test-cmd`, unchanged by this feature
 
   Test: no new vitest file (see testing-boundary note above). Manual smoke deferred to Task 5. Immediate check for this task: `npm run build` must typecheck cleanly (this file already imports `obsidian` types, so it is exercised by `tsc`, just not by `vitest`).
 
-- [ ] **Task 3 — Preview modal (`src/ui/import-preview-modal.ts`, new file + `styles.css`)**
+- [x] **Task 3 — Preview modal (`src/ui/import-preview-modal.ts`, new file + `styles.css`)**
 
   Goal: a native `Modal` (ADR-0002) that renders the `ImportDiff[]` from Task 2 and gates on Confirm/Cancel.
 
@@ -50,7 +50,7 @@ Full-suite command (authoritative, `.claude/test-cmd`, unchanged by this feature
 
   Test: manual smoke, deferred to Task 5 (this modal has no standalone entry point yet — Task 4 wires it in).
 
-- [ ] **Task 4 — Wire the gate into `ImportModal` (`src/ui/import-modal.ts`)**
+- [x] **Task 4 — Wire the gate into `ImportModal` (`src/ui/import-modal.ts`)**
 
   Goal: `submit()` opens the preview only for the overwrite policy with ≥1 conflict; every other path is unchanged.
 

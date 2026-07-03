@@ -1,6 +1,15 @@
 import { normalizePath, type App, type TFile } from "obsidian";
 import { resolveCollision } from "../domain/slug";
-import { planImport, type ExportDoc, type ExportedPrompt, type ImportPolicy } from "../domain/transfer";
+import {
+	diffImportEntry,
+	planImport,
+	toExportedPrompt,
+	type ExportDoc,
+	type ExportedPrompt,
+	type ImportDiff,
+	type ImportPolicy,
+} from "../domain/transfer";
+import { readPromptFromCache, stripFrontmatter } from "./frontmatter";
 
 export interface ImportSummary {
 	created: number;
@@ -76,6 +85,18 @@ async function ensureParentFolder(app: App, fullPath: string): Promise<void> {
 	if (dir !== "" && !app.vault.getFolderByPath(dir)) await app.vault.createFolder(dir);
 }
 
+/** Relative paths (to `folder`) of every markdown note already in the vault. */
+export function listExistingRelativePaths(app: App, folder: string): Set<string> {
+	const prefix = folder === "" ? "" : normalizePath(folder) + "/";
+	return new Set(
+		app.vault
+			.getMarkdownFiles()
+			.map((f) => f.path)
+			.filter((p) => prefix === "" || p.startsWith(prefix))
+			.map((p) => p.slice(prefix.length)),
+	);
+}
+
 /**
  * Executes a validated import (FR-7.3): the caller validates first, so nothing
  * here runs on malformed input; per-entry failures are collected, never thrown.
@@ -87,13 +108,7 @@ export async function runImport(
 	policy: ImportPolicy,
 ): Promise<ImportSummary> {
 	const prefix = folder === "" ? "" : normalizePath(folder) + "/";
-	const existing = new Set(
-		app.vault
-			.getMarkdownFiles()
-			.map((f) => f.path)
-			.filter((p) => prefix === "" || p.startsWith(prefix))
-			.map((p) => p.slice(prefix.length)),
-	);
+	const existing = listExistingRelativePaths(app, folder);
 	const summary: ImportSummary = { created: 0, skipped: 0, overwritten: 0, failed: 0, errors: [] };
 
 	for (const action of planImport(doc, existing, policy)) {
@@ -126,4 +141,28 @@ export async function runImport(
 		}
 	}
 	return summary;
+}
+
+/**
+ * Computes the diff for every planned overwrite conflict (FR-17.1): reads only,
+ * writes nothing, so the preview is structurally guaranteed to run before the
+ * import's actual writes. A previewed target that has vanished from disk by
+ * read time is silently dropped — `runImport` already falls back to creating
+ * in that same situation.
+ */
+export async function buildOverwritePreview(app: App, folder: string, doc: ExportDoc): Promise<ImportDiff[]> {
+	const prefix = folder === "" ? "" : normalizePath(folder) + "/";
+	const existing = listExistingRelativePaths(app, folder);
+	const diffs: ImportDiff[] = [];
+	for (const action of planImport(doc, existing, "overwrite")) {
+		if (action.kind !== "overwrite") continue;
+		const fullPath = normalizePath(prefix + action.targetPath);
+		const file = app.vault.getFileByPath(fullPath);
+		if (!file) continue;
+		const existingPrompt = readPromptFromCache(app, file);
+		const existingBody = stripFrontmatter(await app.vault.cachedRead(file));
+		const existingExported = toExportedPrompt(existingPrompt, existingBody, action.targetPath);
+		diffs.push(diffImportEntry(existingExported, action.entry));
+	}
+	return diffs;
 }
