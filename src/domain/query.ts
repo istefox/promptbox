@@ -21,6 +21,10 @@ export interface LibraryQuery {
 	/** Case-insensitive substring over title, use_case, and body (FR-2.4). */
 	text: string;
 	sort: SortKey;
+	/** FR-9.4: keep only favorite prompts; combines with the other filters via AND. */
+	favoritesOnly: boolean;
+	/** FR-9.5: favorites float above non-favorites; the active sort still orders within each group. */
+	favoritesFirst: boolean;
 }
 
 export function emptyQuery(): LibraryQuery {
@@ -33,6 +37,8 @@ export function emptyQuery(): LibraryQuery {
 		updatedRange: null,
 		text: "",
 		sort: "updated-desc",
+		favoritesOnly: false,
+		favoritesFirst: false,
 	};
 }
 
@@ -44,7 +50,8 @@ export function isQueryActive(q: LibraryQuery): boolean {
 		q.minQuality !== null ||
 		q.visibility !== null ||
 		q.updatedRange !== null ||
-		q.text.trim() !== ""
+		q.text.trim() !== "" ||
+		q.favoritesOnly
 	);
 }
 
@@ -61,6 +68,7 @@ export function runQuery(
 		if (q.tags.length > 0 && !q.tags.every((t) => p.tags.includes(t))) return false;
 		if (q.minQuality !== null && (p.quality === undefined || p.quality < q.minQuality)) return false;
 		if (q.visibility !== null && p.visibility !== q.visibility) return false;
+		if (q.favoritesOnly && !p.favorite) return false;
 		if (q.updatedRange) {
 			if (q.updatedRange.from && p.updated < q.updatedRange.from) return false;
 			if (q.updatedRange.to && p.updated > q.updatedRange.to) return false;
@@ -71,10 +79,10 @@ export function runQuery(
 		}
 		return true;
 	});
-	return results.sort(comparator(q.sort));
+	return results.sort(comparator(q));
 }
 
-function comparator(sort: SortKey): (a: Prompt, b: Prompt) => number {
+function baseComparator(sort: SortKey): (a: Prompt, b: Prompt) => number {
 	const byTitle = (a: Prompt, b: Prompt) => a.title.localeCompare(b.title);
 	switch (sort) {
 		case "updated-desc":
@@ -86,4 +94,30 @@ function comparator(sort: SortKey): (a: Prompt, b: Prompt) => number {
 		case "quality-desc":
 			return (a, b) => (b.quality ?? 0) - (a.quality ?? 0) || byTitle(a, b);
 	}
+}
+
+function comparator(q: LibraryQuery): (a: Prompt, b: Prompt) => number {
+	const base = baseComparator(q.sort);
+	if (!q.favoritesFirst) return base;
+	return (a, b) => (Number(b.favorite) - Number(a.favorite)) || base(a, b);
+}
+
+/** Stable tie-break (FR-9.3): favorites rank first only among items whose
+ * score is exactly equal; relative order is preserved whenever scores
+ * differ, so the caller's own relevance ranking is never overridden. */
+export function rankFavoritesFirst<T>(
+	items: T[],
+	scoreOf: (item: T) => number,
+	isFavorite: (item: T) => boolean,
+): T[] {
+	return items
+		.map((item, index) => ({ item, index }))
+		.sort((a, b) => {
+			if (scoreOf(a.item) !== scoreOf(b.item)) return a.index - b.index;
+			const favA = isFavorite(a.item);
+			const favB = isFavorite(b.item);
+			if (favA === favB) return a.index - b.index;
+			return favA ? -1 : 1;
+		})
+		.map(({ item }) => item);
 }

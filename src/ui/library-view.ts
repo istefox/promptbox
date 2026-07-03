@@ -1,11 +1,14 @@
 import { ItemView, Notice, setIcon, setTooltip, type WorkspaceLeaf } from "obsidian";
+import { lintLibrary, type PromptLintResult } from "../domain/lint";
 import { emptyQuery, runQuery, type LibraryQuery } from "../domain/query";
 import type { Prompt } from "../domain/prompt";
 import type PromptboxPlugin from "../main";
-import { deletePrompt } from "../storage/prompt-writer";
+import { deletePrompt, setFavorite } from "../storage/prompt-writer";
 import { ConfirmModal } from "./confirm-modal";
 import { copyRaw, copyWithVariables } from "./copy";
 import { ImportModal } from "./import-modal";
+import { LintModal } from "./lint-modal";
+import { openNote } from "./open-note";
 import { renderFilterBar, type FilterBarHandle, type FilterOptions } from "./filter-bar";
 
 export const VIEW_TYPE_LIBRARY = "promptbox-library";
@@ -82,7 +85,8 @@ export class PromptboxLibraryView extends ItemView {
 			this.renderEmptyState(index.size);
 			return;
 		}
-		for (const prompt of results) this.renderItem(prompt);
+		const lintByPath = new Map(lintLibrary(index.getAll(), (p) => index.getBody(p)).map((r) => [r.path, r]));
+		for (const prompt of results) this.renderItem(prompt, lintByPath);
 	}
 
 	private renderEmptyState(indexSize: number): void {
@@ -96,22 +100,34 @@ export class PromptboxLibraryView extends ItemView {
 		}
 	}
 
-	private renderItem(prompt: Prompt): void {
+	private renderItem(prompt: Prompt, lintByPath: Map<string, PromptLintResult>): void {
 		const item = this.listEl.createDiv({ cls: "promptbox-item" });
 
 		const header = item.createDiv({ cls: "promptbox-item__header" });
+		this.addFavoriteToggle(header, prompt);
 		header.createSpan({ text: prompt.title, cls: "promptbox-item__title" });
-		if (prompt.warnings.length > 0) {
+		const lintResult = lintByPath.get(prompt.path);
+		const warningFindings = lintResult?.findings.filter((f) => f.severity === "warning") ?? [];
+		if (warningFindings.length > 0) {
 			const badge = header.createSpan({ cls: "promptbox-item__warning" });
 			setIcon(badge, "alert-triangle");
-			badge.setAttribute("aria-label", `Frontmatter issues: ${prompt.warnings.join("; ")}`);
+			badge.setAttribute("aria-label", `Lint warnings: ${warningFindings.map((f) => f.message).join("; ")}`);
+			badge.addEventListener("click", () => {
+				new LintModal(this.app, [...lintByPath.values()], { scopedToPath: prompt.path }).open();
+			});
 		}
 		if (prompt.quality !== undefined) {
 			header.createSpan({ text: "★".repeat(prompt.quality), cls: "promptbox-item__quality" });
 		}
 		const actions = header.createDiv({ cls: "promptbox-item__actions" });
 		this.addItemAction(actions, "braces", "Copy with variables", () =>
-			copyWithVariables(this.app, prompt.title, this.plugin.index.getBody(prompt.path)),
+			copyWithVariables(
+				this.app,
+				prompt.title,
+				this.plugin.index.getBody(prompt.path),
+				prompt.path,
+				this.plugin.variableModalDeps(),
+			),
 		);
 		this.addItemAction(actions, "clipboard-copy", "Copy raw", () =>
 			copyRaw(prompt.title, this.plugin.index.getBody(prompt.path)),
@@ -142,6 +158,25 @@ export class PromptboxLibraryView extends ItemView {
 
 	}
 
+	private addFavoriteToggle(header: HTMLElement, prompt: Prompt): void {
+		const favoriteBtn = header.createEl("button", {
+			cls: "promptbox-item__action clickable-icon" + (prompt.favorite ? " is-favorite" : ""),
+		});
+		setIcon(favoriteBtn, "star");
+		const label = prompt.favorite ? "Remove from favorites" : "Add to favorites";
+		favoriteBtn.setAttribute("aria-label", label);
+		favoriteBtn.setAttribute("aria-pressed", String(prompt.favorite));
+		setTooltip(favoriteBtn, label);
+		favoriteBtn.addEventListener("click", () => {
+			const file = this.app.vault.getFileByPath(prompt.path);
+			if (!file) return;
+			void setFavorite(this.app, file, !prompt.favorite).catch(
+				(error: unknown) =>
+					new Notice(`Promptbox: favorite update failed — ${error instanceof Error ? error.message : String(error)}`),
+			);
+		});
+	}
+
 	private addItemAction(container: HTMLElement, icon: string, label: string, onClick: () => void): void {
 		const btn = container.createEl("button", { cls: "promptbox-item__action clickable-icon" });
 		setIcon(btn, icon);
@@ -151,12 +186,7 @@ export class PromptboxLibraryView extends ItemView {
 	}
 
 	private async openAsNote(path: string): Promise<void> {
-		const file = this.app.vault.getFileByPath(path);
-		if (!file) {
-			new Notice("Note not found — the index may be stale.");
-			return;
-		}
-		await this.app.workspace.getLeaf(false).openFile(file);
+		await openNote(this.app, path);
 	}
 
 	private confirmDelete(prompt: Prompt): void {

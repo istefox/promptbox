@@ -53,3 +53,92 @@ export function resolvePlaceholders(body: string, values: Record<string, string>
 		return Object.prototype.hasOwnProperty.call(values, variable.name) ? values[variable.name]! : whole;
 	});
 }
+
+/**
+ * A placeholder name starting with `@` is a reserved context variable (FR-10.1).
+ * The whole `@` namespace is reserved, not just the four names currently resolved.
+ */
+export function isContextVariable(name: string): boolean {
+	return name.startsWith("@");
+}
+
+export interface PlaceholderMatch {
+	raw: string;
+	start: number;
+	end: number;
+	variable: PromptVariable | null;
+}
+
+/**
+ * Positions alongside `parsePlaceholders`' parse result, for span-based
+ * composition with other body syntaxes (e.g. wikilink transclusion, FR-12.6).
+ */
+export function matchPlaceholders(body: string): PlaceholderMatch[] {
+	const matches: PlaceholderMatch[] = [];
+	for (const match of body.matchAll(PLACEHOLDER_RE)) {
+		const start = match.index ?? 0;
+		matches.push({
+			raw: match[0],
+			start,
+			end: start + match[0].length,
+			variable: parseSegments(match[1] ?? ""),
+		});
+	}
+	return matches;
+}
+
+function optionsEqual(a: string[] | undefined, b: string[] | undefined): boolean {
+	if (a === undefined || b === undefined) return a === b;
+	return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+/**
+ * L1: true when a well-formed-brace match's content is itself malformed (empty
+ * name, >3 segments), or when text left over after removing every well-formed
+ * match still contains a literal "{{" (unclosed opening, or the dangling brace
+ * left behind by a nested construct).
+ */
+export function hasMalformedPlaceholders(body: string): boolean {
+	let remaining = "";
+	let lastIndex = 0;
+	for (const match of body.matchAll(PLACEHOLDER_RE)) {
+		if (parseSegments(match[1] ?? "") === null) return true;
+		const start = match.index ?? 0;
+		remaining += body.slice(lastIndex, start);
+		lastIndex = start + match[0].length;
+	}
+	remaining += body.slice(lastIndex);
+	return remaining.includes("{{");
+}
+
+/**
+ * L2: groups every well-formed occurrence by variable name (unlike
+ * parsePlaceholders, no first-wins dedup) and returns the names, in
+ * first-appearance order, where two or more occurrences disagree on
+ * defaultValue, hint, or options.
+ */
+export function findConflictingVariableNames(body: string): string[] {
+	const order: string[] = [];
+	const groups = new Map<string, PromptVariable[]>();
+	for (const match of body.matchAll(PLACEHOLDER_RE)) {
+		const variable = parseSegments(match[1] ?? "");
+		if (!variable) continue;
+		let occurrences = groups.get(variable.name);
+		if (!occurrences) {
+			occurrences = [];
+			groups.set(variable.name, occurrences);
+			order.push(variable.name);
+		}
+		occurrences.push(variable);
+	}
+	return order.filter((name) => {
+		const occurrences = groups.get(name)!;
+		const first = occurrences[0]!;
+		return occurrences.some(
+			(v) =>
+				v.defaultValue !== first.defaultValue ||
+				v.hint !== first.hint ||
+				!optionsEqual(v.options, first.options),
+		);
+	});
+}

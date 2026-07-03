@@ -3,14 +3,18 @@ import { mergeSettings, type PromptboxSettings } from "./settings";
 import { readPromptFromCache, stripFrontmatter } from "./storage/frontmatter";
 import { PromptIndex } from "./storage/indexer";
 import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
+import { LintModal } from "./ui/lint-modal";
 import { PromptModal } from "./ui/prompt-modal";
 import { PromptQuickPicker } from "./ui/quick-picker";
 import { collectVaultTags } from "./ui/suggest";
 import { ImportModal } from "./ui/import-modal";
 import { buildExport } from "./domain/transfer";
+import { lintLibrary } from "./domain/lint";
 import { exportWithDialog } from "./storage/transfer-io";
 import type { Prompt } from "./domain/prompt";
+import { upsertProfile } from "./domain/variable-profiles";
 import { PromptboxSettingTab } from "./ui/settings-tab";
+import type { VariableModalDeps } from "./ui/variable-modal";
 
 export default class PromptboxPlugin extends Plugin {
 	override settings!: PromptboxSettings;
@@ -88,6 +92,12 @@ export default class PromptboxPlugin extends Plugin {
 			name: "Import prompts (JSON)",
 			callback: () => new ImportModal(this.app, this).open(),
 		});
+		this.addCommand({
+			id: "lint-library",
+			name: "Lint library",
+			callback: () =>
+				new LintModal(this.app, lintLibrary(this.index.getAll(), (p) => this.index.getBody(p))).open(),
+		});
 
 		// Deferred start: no vault I/O before the layout is ready (NFR-2).
 		this.app.workspace.onLayoutReady(() => {
@@ -145,6 +155,20 @@ export default class PromptboxPlugin extends Plugin {
 		} catch (error) {
 			new Notice(`Promptbox: export failed — ${error instanceof Error ? error.message : String(error)}`);
 		}
+	}
+
+	/** Narrow deps for `VariableModal` (ADR-0009), mirrors `modalDeps()`. */
+	variableModalDeps(): VariableModalDeps {
+		return {
+			profiles: this.settings.profiles,
+			saveProfile: (name, values) => this.saveVariableProfile(name, values),
+		};
+	}
+
+	/** FR-14.3: save-as-profile, called from the variable modal. */
+	async saveVariableProfile(name: string, values: Record<string, string>): Promise<void> {
+		this.settings.profiles = upsertProfile(this.settings.profiles, name, values);
+		await this.saveSettings();
 	}
 
 	private modalDeps() {
