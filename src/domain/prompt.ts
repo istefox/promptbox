@@ -13,6 +13,7 @@ export interface Prompt {
 	version: string;
 	created: string;
 	updated: string;
+	favorite: boolean;
 	/** Unrecognized frontmatter fields, preserved verbatim (phase-2 namespaced fields included). */
 	custom: Record<string, unknown>;
 	/** Normalization problems found on read; the note is still usable (NFR-8). */
@@ -38,6 +39,7 @@ const KNOWN_FIELDS = new Set([
 	"version",
 	"created",
 	"updated",
+	"favorite",
 ]);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -115,6 +117,12 @@ function readDate(
 	return fallback;
 }
 
+function readFavorite(value: unknown): boolean {
+	// Deliberately silent: FR-9.1 requires absent/invalid values to fall back
+	// to false with a warning-free render, unlike every other field above.
+	return value === true;
+}
+
 /**
  * Normalizes raw frontmatter (as produced by Obsidian's metadata cache) into a Prompt.
  * Tolerant by contract: never throws, every invalid field degrades to a safe default
@@ -162,6 +170,7 @@ export function normalizePrompt(rawInput: unknown, ctx: NormalizeContext): Promp
 		version,
 		created: readDate(raw, "created", ctx.today, warnings),
 		updated: readDate(raw, "updated", ctx.today, warnings),
+		favorite: readFavorite(raw["favorite"]),
 		custom,
 		warnings,
 	};
