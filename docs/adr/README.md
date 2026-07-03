@@ -12,3 +12,4 @@ Decisions are numbered, immutable once accepted (superseded by new ADRs, never e
 | [0006](0006-tag-category-suggestions.md) | Local keyword-frequency scorer for tag and category suggestions | Accepted |
 | [0007](0007-vault-transclusion.md) | Wikilink transclusion at copy time via a pure single-pass body assembler | Accepted |
 | [0009](0009-variable-profiles.md) | Store variable profiles in plugin settings behind a pure domain layer | Accepted |
+| [0010](0010-prompt-linter.md) | Prompt linter as pure domain rules with a shared per-render lint pass | Accepted |
