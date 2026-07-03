@@ -6,7 +6,7 @@ TDD scope: Task 1 is test-first and vitest-covered (`src/domain/*` is the only t
 
 ## Task 1 — Pure lookup: `src/domain/launcher.ts`
 
-- [ ] Implement `resolveLauncherLookup`, satisfying FR-13.2/13.4/13.5, before touching `main.ts`.
+- [x] Implement `resolveLauncherLookup`, satisfying FR-13.2/13.4/13.5, before touching `main.ts`.
 
 **Files:**
 - `src/domain/launcher.ts` (new)
@@ -38,7 +38,7 @@ Rules (ADR-0008): trim `path` and `title` first; both blank/absent → `{ kind: 
 
 ## Task 2 — `main.ts`: track index readiness
 
-- [ ] Make "the index has completed its first scan" independently awaitable, with zero behavior change to the existing startup sequence.
+- [x] Make "the index has completed its first scan" independently awaitable, with zero behavior change to the existing startup sequence.
 
 **Files:** `src/main.ts` (modify only).
 
@@ -57,7 +57,7 @@ Nothing else in that block changes — this task is a pure wrapper, not a behavi
 
 ## Task 3 — `main.ts`: register the `promptbox` protocol handler
 
-- [ ] Wire FR-13.1/13.2/13.3/13.4 end to end using Task 1's domain function and Task 2's readiness gate.
+- [x] Wire FR-13.1/13.2/13.3/13.4 end to end using Task 1's domain function and Task 2's readiness gate.
 
 **Files:** `src/main.ts` (modify only).
 
