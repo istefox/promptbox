@@ -7,7 +7,7 @@ import { PromptModal } from "./ui/prompt-modal";
 import { PromptQuickPicker } from "./ui/quick-picker";
 import { collectVaultTags } from "./ui/suggest";
 import { ImportModal } from "./ui/import-modal";
-import { buildExport } from "./domain/transfer";
+import { buildExport, buildPackExport, type PackHeader } from "./domain/transfer";
 import { exportWithDialog } from "./storage/transfer-io";
 import type { Prompt } from "./domain/prompt";
 import { PromptboxSettingTab } from "./ui/settings-tab";
@@ -136,6 +136,29 @@ export default class PromptboxPlugin extends Plugin {
 			(path) => this.index.getBody(path),
 			this.settings.promptsFolder,
 			new Date().toISOString(),
+		);
+		try {
+			const dest = await exportWithDialog(this.app, doc);
+			if (dest.kind === "cancelled") return;
+			const where = dest.kind === "picker" ? dest.name : `${dest.path} (vault root)`;
+			new Notice(`Exported ${prompts.length} prompt(s) to ${where}`);
+		} catch (error) {
+			new Notice(`Promptbox: export failed — ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	/** FR-20.1: exports the given (typically filtered) set with a pack header. */
+	async exportPromptsAsPack(prompts: Prompt[], pack: PackHeader): Promise<void> {
+		if (prompts.length === 0) {
+			new Notice("Promptbox: nothing to export.");
+			return;
+		}
+		const doc = buildPackExport(
+			prompts,
+			(path) => this.index.getBody(path),
+			this.settings.promptsFolder,
+			new Date().toISOString(),
+			pack,
 		);
 		try {
 			const dest = await exportWithDialog(this.app, doc);

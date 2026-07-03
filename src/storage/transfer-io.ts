@@ -1,6 +1,12 @@
 import { normalizePath, type App, type TFile } from "obsidian";
-import { resolveCollision } from "../domain/slug";
+import { resolveCollision, slugify } from "../domain/slug";
 import { planImport, type ExportDoc, type ExportedPrompt, type ImportPolicy } from "../domain/transfer";
+
+/** Base export file name (no extension); pack-aware (FR-20.2), byte-identical to before for plain exports. */
+function baseExportName(doc: ExportDoc): string {
+	const date = `promptbox-export-${doc.exported_at.slice(0, 10) || "backup"}`;
+	return doc.pack ? `${date}-${slugify(doc.pack.name)}` : date;
+}
 
 export interface ImportSummary {
 	created: number;
@@ -34,7 +40,7 @@ export async function exportWithDialog(app: App, doc: ExportDoc): Promise<Export
 	if (picker) {
 		try {
 			const handle = await picker({
-				suggestedName: `promptbox-export-${doc.exported_at.slice(0, 10) || "backup"}.json`,
+				suggestedName: `${baseExportName(doc)}.json`,
 				types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
 			});
 			const writable = await handle.createWritable();
@@ -51,7 +57,7 @@ export async function exportWithDialog(app: App, doc: ExportDoc): Promise<Export
 
 /** Writes the export document to a collision-safe JSON file in the vault root (FR-7.1). */
 export async function exportToVaultFile(app: App, doc: ExportDoc): Promise<TFile> {
-	const base = `promptbox-export-${doc.exported_at.slice(0, 10) || "backup"}`;
+	const base = baseExportName(doc);
 	const name = resolveCollision(base, (c) => app.vault.getAbstractFileByPath(`${c}.json`) !== null);
 	return app.vault.create(`${name}.json`, JSON.stringify(doc, null, 2));
 }

@@ -13,7 +13,7 @@ TDD order: domain first (write failing tests, then implement), then storage nami
 
 ## Task 1: Domain — pack header type, tolerant parse, pack-aware build (TDD)
 
-- [ ] Write the failing test cases below in `tests/transfer.test.ts` first; confirm they fail against the current `src/domain/transfer.ts`; then implement `src/domain/transfer.ts` until they pass, without changing `buildExport`'s existing behavior or signature.
+- [x] Write the failing test cases below in `tests/transfer.test.ts` first; confirm they fail against the current `src/domain/transfer.ts`; then implement `src/domain/transfer.ts` until they pass, without changing `buildExport`'s existing behavior or signature.
 
 **Goal:** introduce `PackHeader`, `buildPackExport`, `parsePackHeader`, extend `ExportDoc` with an optional `pack` field, and extend `ValidationResult`'s success branch with a `warnings: string[]` field, per the contracts pinned in ADR-0013's Decision section (Domain layer). `buildExport`, `planImport`, `ExportedPrompt`, `ImportAction` stay untouched.
 
@@ -42,7 +42,7 @@ TDD order: domain first (write failing tests, then implement), then storage nami
 
 ## Task 2: Storage — pack-aware export file naming
 
-- [ ] Factor the existing `promptbox-export-${date}` base-name computation in `src/storage/transfer-io.ts` into one shared helper and extend it to append `-${slugify(doc.pack.name)}` when `doc.pack` is present.
+- [x] Factor the existing `promptbox-export-${date}` base-name computation in `src/storage/transfer-io.ts` into one shared helper and extend it to append `-${slugify(doc.pack.name)}` when `doc.pack` is present.
 
 **Goal:** satisfy FR-20.2 ("file naming follows the existing export naming with the pack slug") without changing `exportWithDialog`'s or `exportToVaultFile`'s exported signatures or their plain-export output (no `doc.pack` → identical filename to today).
 
@@ -55,7 +55,7 @@ TDD order: domain first (write failing tests, then implement), then storage nami
 
 ## Task 3: Export UI — "Export as pack…" modal and wiring
 
-- [ ] Add `PackExportModal`, a third library-view button, and a plugin method that builds and exports a pack document.
+- [x] Add `PackExportModal`, a third library-view button, and a plugin method that builds and exports a pack document.
 
 **Goal:** discharge FR-20.1/FR-20.2 end to end: a small modal collects a required non-empty `name` and optional `description`, then exports the current filtered set as a pack document via the existing `exportWithDialog` path. FR-20.3 (plain export flows unchanged) is preserved by leaving `exportPrompts` and its call sites untouched.
 
@@ -71,7 +71,7 @@ TDD order: domain first (write failing tests, then implement), then storage nami
 
 ## Task 4: Import UI — pack-aware preview panel
 
-- [ ] Add a live-updating pack summary/warning panel to `ImportModal`, positioned above the existing "On conflicts" policy control; leave `submit()`'s validation/execution flow otherwise unchanged.
+- [x] Add a live-updating pack summary/warning panel to `ImportModal`, positioned above the existing "On conflicts" policy control; leave `submit()`'s validation/execution flow otherwise unchanged.
 
 **Goal:** discharge FR-21.2 (pack name/description/count shown above policy controls when a valid pack is present) and the FR-21.1 warning-line requirement, while FR-21.3 (execution, policies, summary, round-trip) stays intact because `runImport` is never touched and never reads `doc.pack`.
 
@@ -85,7 +85,7 @@ TDD order: domain first (write failing tests, then implement), then storage nami
 
 ## Task 5: Full regression gate
 
-- [ ] Re-confirm the call-site audit from ADR-0013 (a quick re-grep for `validateImport`, `buildExport`, `ExportDoc`, `ValidationResult`, `exportWithDialog`, `exportToVaultFile`, `runImport`, `planImport` across `src/` and `tests/`) and run the full authoritative test command, not just the touched module's tests.
+- [x] Re-confirm the call-site audit from ADR-0013 (a quick re-grep for `validateImport`, `buildExport`, `ExportDoc`, `ValidationResult`, `exportWithDialog`, `exportToVaultFile`, `runImport`, `planImport` across `src/` and `tests/`) and run the full authoritative test command, not just the touched module's tests.
 
 **Goal:** enforce, rather than merely assert, that this feature's additive changes have not broken any unrelated suite or call site — the Quality Standards concern behind touching a shared, well-tested type (`ExportDoc`, `ValidationResult`).
 
