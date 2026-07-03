@@ -36,3 +36,14 @@ npm run lint     # eslint
 - Performance target is ~1,000 prompts; list virtualization is deferred until NFR-1 measurements demand it.
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
+
+## Decisions from the import-diff-preview chain (ADR-0011)
+
+Overwrite-policy imports show a per-conflict change preview (fields old→new, body +N/−N, "identical") before anything is written.
+
+Key architectural decisions:
+- **`toExportedPrompt` extracted from `buildExport`:** one canonical Prompt+body → transfer-shape mapper; both diff sides use it, so Prompt-only fields are excluded automatically.
+- **Gate one layer above `runImport`:** `buildOverwritePreview` in `transfer-io.ts` called from the import modal; `runImport` untouched, FR-17.4/17.5 true by construction.
+- **All ten overwritable fields diff**, including `created`/`updated` (silent date rewinds are exactly what the preview must surface).
+
+Detail: `docs/adr/0011-import-diff-preview.md`.
