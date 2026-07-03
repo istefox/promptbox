@@ -350,3 +350,39 @@
 .is-mobile .promptbox-item__header {
 	flex-wrap: wrap;
 }
+
+/* Library statistics report modal (FR-22) */
+.promptbox-stats__section {
+	margin-bottom: var(--size-4-4);
+}
+
+.promptbox-stats__section h3 {
+	margin-bottom: var(--size-2-2);
+}
+
+.promptbox-stats__row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--size-2-3);
+	padding: var(--size-2-1) 0;
+}
+
+.promptbox-stats__none {
+	color: var(--text-faint);
+	font-style: italic;
+}
+
+.promptbox-stats__hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.promptbox-stats__empty {
+	color: var(--text-muted);
+	padding: var(--size-4-4) 0;
+}
+
+.is-mobile .promptbox-stats__open-btn {
+	min-height: 44px;
+}

@@ -54,6 +54,6 @@ Test:
 
 ## Task checklist
 
-- [ ] Task 1 — `computeLibraryStats` domain aggregator, TDD, vitest-covered.
+- [x] Task 1 — `computeLibraryStats` domain aggregator, TDD, vitest-covered.
 - [ ] Task 2 — Stats report modal, command wiring, styles.css additions, manual smoke recorded.
 - [ ] Task 3 — Full build/lint/test green, all 4 acceptance criteria re-verified.

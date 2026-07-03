@@ -7,6 +7,7 @@ import { PromptModal } from "./ui/prompt-modal";
 import { PromptQuickPicker } from "./ui/quick-picker";
 import { collectVaultTags } from "./ui/suggest";
 import { ImportModal } from "./ui/import-modal";
+import { StatsModal } from "./ui/stats-modal";
 import { buildExport } from "./domain/transfer";
 import { exportWithDialog } from "./storage/transfer-io";
 import type { Prompt } from "./domain/prompt";
@@ -87,6 +88,11 @@ export default class PromptboxPlugin extends Plugin {
 			id: "import-json",
 			name: "Import prompts (JSON)",
 			callback: () => new ImportModal(this.app, this).open(),
+		});
+		this.addCommand({
+			id: "library-statistics",
+			name: "Library statistics",
+			callback: () => new StatsModal(this.app, this).open(),
 		});
 
 		// Deferred start: no vault I/O before the layout is ready (NFR-2).
