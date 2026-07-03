@@ -36,6 +36,14 @@
 	margin-right: var(--size-4-3);
 }
 
+.promptbox-filters__favorites-first {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+}
+
 .promptbox-chip {
 	font-size: var(--font-ui-smaller);
 	padding: var(--size-2-1) var(--size-2-3);
@@ -162,6 +170,15 @@
 	width: 100%;
 }
 
+.is-mobile .promptbox-filters__favorites-first {
+	min-height: 44px;
+}
+
+.is-mobile .promptbox-filters__favorites-first input[type="checkbox"] {
+	width: 20px;
+	height: 20px;
+}
+
 /* Item actions (FR-2.6) */
 .promptbox-item__actions {
 	display: flex;
@@ -176,6 +193,14 @@
 
 .promptbox-item__action:hover {
 	color: var(--text-normal);
+}
+
+.promptbox-item__action.is-favorite {
+	color: var(--text-accent);
+}
+
+.promptbox-item__action.is-favorite svg {
+	fill: currentColor;
 }
 
 /* Create / edit modal */
@@ -370,4 +395,12 @@
 
 .is-mobile .promptbox-item__header {
 	flex-wrap: wrap;
+}
+
+/* Quick picker favorite indicator (FR-9.3) */
+.promptbox-picker__favorite {
+	display: inline-flex;
+	align-items: center;
+	margin-right: var(--size-2-2);
+	color: var(--text-accent);
 }

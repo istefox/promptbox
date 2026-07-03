@@ -1,5 +1,6 @@
-import { FuzzySuggestModal, type App } from "obsidian";
+import { FuzzySuggestModal, setIcon, type App, type FuzzyMatch } from "obsidian";
 import type { Prompt } from "../domain/prompt";
+import { rankFavoritesFirst } from "../domain/query";
 import type PromptboxPlugin from "../main";
 import { copyRaw, copyWithVariables } from "./copy";
 
@@ -32,6 +33,23 @@ export class PromptQuickPicker extends FuzzySuggestModal<Prompt> {
 
 	override getItemText(prompt: Prompt): string {
 		return `${prompt.title} ${prompt.category} ${prompt.tags.join(" ")} ${prompt.useCase}`;
+	}
+
+	override getSuggestions(query: string): FuzzyMatch<Prompt>[] {
+		return rankFavoritesFirst(
+			super.getSuggestions(query),
+			(m) => m.match.score,
+			(m) => m.item.favorite,
+		);
+	}
+
+	override renderSuggestion(match: FuzzyMatch<Prompt>, el: HTMLElement): void {
+		super.renderSuggestion(match, el);
+		if (match.item.favorite) {
+			const star = createSpan({ cls: "promptbox-picker__favorite" });
+			setIcon(star, "star");
+			el.prepend(star);
+		}
 	}
 
 	override onChooseItem(prompt: Prompt, evt: MouseEvent | KeyboardEvent): void {

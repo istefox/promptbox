@@ -54,6 +54,14 @@ export function resolvePlaceholders(body: string, values: Record<string, string>
 	});
 }
 
+/**
+ * A placeholder name starting with `@` is a reserved context variable (FR-10.1).
+ * The whole `@` namespace is reserved, not just the four names currently resolved.
+ */
+export function isContextVariable(name: string): boolean {
+	return name.startsWith("@");
+}
+
 export interface PlaceholderMatch {
 	raw: string;
 	start: number;

@@ -1,6 +1,7 @@
 import { Notice, type App } from "obsidian";
-import { parsePlaceholders } from "../domain/placeholders";
+import { isContextVariable, parsePlaceholders } from "../domain/placeholders";
 import { assembleBody, detectWikilinks } from "../domain/transclusion";
+import { resolveContextVariables } from "./context-variables";
 import { resolveWikilinks, TransclusionPreviewModal } from "./transclusion-modal";
 import { VariableModal } from "./variable-modal";
 
@@ -17,12 +18,14 @@ export async function writeClipboard(text: string, label: string): Promise<void>
 }
 
 /**
- * The FR-4/FR-12 copy flow: wikilinks resolve first (FR-12.1), with a preview
- * step when at least one resolves (FR-12.5); then placeholders on the
- * ORIGINAL body only (FR-12.6) — prompts without placeholders copy
- * immediately (FR-4.4), otherwise the variable form collects values and the
- * assembled body is copied on confirm; cancel copies nothing (FR-4.2, FR-4.3).
- * A body with zero wikilinks gets zero new UI (FR-12.5).
+ * The FR-4/FR-10/FR-12 copy flow: wikilinks resolve first (FR-12.1), with a
+ * preview step when at least one resolves (FR-12.5); then placeholders on the
+ * ORIGINAL body only (FR-12.6). Reserved `@`-prefixed names resolve from
+ * workspace state and never reach the modal (FR-10); remaining variables go
+ * through the variable form, and the assembled body is copied on confirm;
+ * cancel copies nothing (FR-4.2, FR-4.3). A body with zero wikilinks gets
+ * zero new UI, and one whose placeholders are all context variables copies
+ * without a modal once resolution settles (FR-4.4).
  */
 export function copyWithVariables(app: App, title: string, body: string, sourcePath: string): void {
 	async function run(): Promise<void> {
@@ -31,18 +34,27 @@ export function copyWithVariables(app: App, title: string, body: string, sourceP
 
 		const finish = (): void => {
 			const variables = parsePlaceholders(body);
+			const contextVars = variables.filter((v) => isContextVariable(v.name));
+			const userVars = variables.filter((v) => !isContextVariable(v.name));
 			const afterCopy = (): void => {
 				if (unresolved.length > 0) {
 					new Notice(`Promptbox: unresolved link(s): ${unresolved.join(", ")}`);
 				}
 			};
-			if (variables.length === 0) {
-				void writeClipboard(assembleBody(body, resolved, {}), title).then(afterCopy);
-				return;
-			}
-			new VariableModal(app, variables, (values) => {
-				void writeClipboard(assembleBody(body, resolved, values), title).then(afterCopy);
-			}).open();
+			void resolveContextVariables(
+				app,
+				contextVars.map((v) => v.name),
+			).then((contextValues) => {
+				if (userVars.length === 0) {
+					void writeClipboard(assembleBody(body, resolved, contextValues), title).then(afterCopy);
+					return;
+				}
+				new VariableModal(app, userVars, (userValues) => {
+					void writeClipboard(assembleBody(body, resolved, { ...contextValues, ...userValues }), title).then(
+						afterCopy,
+					);
+				}).open();
+			});
 		};
 
 		if (resolved.size > 0) {
