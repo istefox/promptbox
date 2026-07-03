@@ -36,3 +36,14 @@ npm run lint     # eslint
 - Performance target is ~1,000 prompts; list virtualization is deferred until NFR-1 measurements demand it.
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
+
+## Decisions from the library-statistics chain (ADR-0014)
+
+Read-only stats modal: totals, taxonomy counts (top-10 tags), quality distribution, 10 oldest, orphan taxonomy values with usage counts.
+
+Key architectural decisions:
+- **Transient Modal, computed once in `onOpen()`:** no live subscription, no lifecycle bookkeeping (out-of-scope: embedded panel).
+- **Single `computeLibraryStats(prompts, taxonomy)` entry point** returning one `LibraryStats` object; one test surface, buckets always sum to total.
+- **Orphan detection reuses `isCustomValue`** from `src/domain/prompt.ts`; never reimplement the check.
+
+Detail: `docs/adr/0014-library-statistics.md`.
