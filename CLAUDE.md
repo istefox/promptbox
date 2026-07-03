@@ -36,3 +36,15 @@ npm run lint     # eslint
 - Performance target is ~1,000 prompts; list virtualization is deferred until NFR-1 measurements demand it.
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
+
+## Decisions from the variable-profiles chain (ADR-0009)
+
+Named placeholder value sets in `data.json`, applied from a dropdown in the variable modal; never stored in notes.
+
+Key architectural decisions:
+- **Pure domain module `src/domain/variable-profiles.ts`:** normalize/match/apply/upsert, vitest-covered; tolerant load drops malformed entries.
+- **Narrow deps injection:** `VariableModalDeps` (profiles + saveProfile) built by `variableModalDeps()`, mirroring `PromptModalDeps`.
+- **Modal `display()` rebuild refactor:** state in `this.values`; the Enter-to-submit listener attaches once in `onOpen()`, never inside `display()` (duplicate-listener footgun).
+- **Dropdown lists only profiles with ≥1 matching key.**
+
+Detail: `docs/adr/0009-variable-profiles.md`.
