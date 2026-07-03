@@ -37,6 +37,17 @@ npm run lint     # eslint
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
 
+## Decisions from the library-statistics chain (ADR-0014)
+
+Read-only stats modal: totals, taxonomy counts (top-10 tags), quality distribution, 10 oldest, orphan taxonomy values with usage counts.
+
+Key architectural decisions:
+- **Transient Modal, computed once in `onOpen()`:** no live subscription, no lifecycle bookkeeping (out-of-scope: embedded panel).
+- **Single `computeLibraryStats(prompts, taxonomy)` entry point** returning one `LibraryStats` object; one test surface, buckets always sum to total.
+- **Orphan detection reuses `isCustomValue`** from `src/domain/prompt.ts`; never reimplement the check.
+
+Detail: `docs/adr/0014-library-statistics.md`.
+
 ## Decisions from the related-prompts chain (ADR-0012)
 
 Read-only "Related" section in the edit modal: top 5 neighbors by shared tags (×3), category (×2), title/use_case token overlap (×1).

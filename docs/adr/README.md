@@ -16,3 +16,4 @@ Decisions are numbered, immutable once accepted (superseded by new ADRs, never e
 | [0011](0011-import-diff-preview.md) | Import-conflict diff preview | Accepted |
 | [0012](0012-related-prompts.md) | Related prompts: pure weighted-overlap scorer, surfaced read-only in the edit modal | Accepted |
 | [0013](0013-curated-packs.md) | Curated packs: additive pack header for export/import | Accepted |
+| [0014](0014-library-statistics.md) | Library statistics as a read-only report modal over a pure domain aggregator | Accepted |

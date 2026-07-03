@@ -8,6 +8,7 @@ import { PromptModal } from "./ui/prompt-modal";
 import { PromptQuickPicker } from "./ui/quick-picker";
 import { collectVaultTags } from "./ui/suggest";
 import { ImportModal } from "./ui/import-modal";
+import { StatsModal } from "./ui/stats-modal";
 import { buildExport, buildPackExport, type PackHeader } from "./domain/transfer";
 import { lintLibrary } from "./domain/lint";
 import { exportWithDialog } from "./storage/transfer-io";
@@ -97,6 +98,11 @@ export default class PromptboxPlugin extends Plugin {
 			name: "Lint library",
 			callback: () =>
 				new LintModal(this.app, lintLibrary(this.index.getAll(), (p) => this.index.getBody(p))).open(),
+		});
+		this.addCommand({
+			id: "library-statistics",
+			name: "Library statistics",
+			callback: () => new StatsModal(this.app, this).open(),
 		});
 
 		// Deferred start: no vault I/O before the layout is ready (NFR-2).

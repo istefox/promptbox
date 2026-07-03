@@ -1,41 +1,37 @@
-# SPEC — Related prompts (Phase 1.5, from competitive-analysis §6 N6)
+# SPEC — Library statistics view (Phase 1.5, from competitive-analysis §6 N8)
 
-**Topic slug:** related-prompts
+**Topic slug:** library-statistics
 
 | | |
 |---|---|
-| Source | `docs/competitive-analysis.md` §6 N6 (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
-| Depends on | Tiers 1-3 (met); ADR-0001, ADR-0002 binding |
-| Effort | S/M |
+| Source | `docs/competitive-analysis.md` §6 N8 (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
+| Depends on | Tiers 1-2 (met); ADR-0001, ADR-0002 binding |
+| Effort | S |
 
 ## 1. Purpose
 
-Surface each prompt's nearest neighbors by shared tags, category, and title/use_case token overlap, to help curation (US-5) as the library grows toward 1,000 prompts. Pure index computation, no new data.
+A read-only statistics panel over the index: counts by taxonomy, quality distribution, stale prompts, and taxonomy orphans (values used in notes but absent from settings). Curation aid; orphan detection closes the silent gap left by FR-8.2 (removing a taxonomy value never edits notes).
 
 ## 2. Requirements
 
-### FR-18 Similarity (MUST)
+### FR-22 Statistics (MUST)
 
-- FR-18.1 Pure domain scorer: similarity between two prompts = weighted sum of shared tags (weight 3 each), same category (2), title/use_case token overlap (1 per shared token, case-insensitive, diacritics-insensitive). Deterministic; zero score = unrelated.
-- FR-18.2 `relatedPrompts(target, all, limit)` returns the top N (default 5) non-zero-score neighbors, ties broken by newest `updated` then path ascending. Excludes the target itself. Vitest-covered.
-
-### FR-19 Surface (MUST)
-
-- FR-19.1 In the edit-metadata modal, a read-only "Related" section lists up to 5 related prompts (title, type, score-free display) with an "open as note" action each. Absent when there are no related prompts. Create mode shows nothing (no path yet).
-- FR-19.2 Computation runs once when the modal opens; no keystroke recomputation.
-- FR-19.3 Read-only: no note writes, no new settings, no new frontmatter.
+- FR-22.1 Pure domain aggregator over `Prompt[]` + settings taxonomy: totals; counts per type, category, and tag (top 10 tags by count); quality distribution (1-5 plus unset); stale list (10 oldest by `updated`); orphan values (types and categories present in notes but not in settings). Vitest-covered.
+- FR-22.2 Command "Library statistics" opens a report modal with those sections; empty sections show a "none" line; empty library shows a friendly empty state, never a crash (NFR-8).
+- FR-22.3 Orphan rows and stale rows are informational; orphan rows carry a hint that the value can be re-added in settings (no action buttons that write anything). Stale rows have an "open as note" action.
+- FR-22.4 Read-only: no note writes, no settings writes, no new frontmatter, no new settings.
 
 ## 3. Acceptance criteria
 
-- Two prompts sharing 2 tags and a category outrank a prompt sharing 1 title token.
-- A prompt with unique tags, category, and title shows no Related section.
-- Related entries open as notes without closing corruption (modal closes, note opens).
-- Create-mode modal never shows the section.
+- Library with 3 types in use, 2 configured: the missing one is listed under orphans with its usage count.
+- Quality distribution row shows counts for each value 1-5 plus "unset".
+- Stale section lists the 10 oldest by `updated` with dates; "open as note" works.
+- Empty library: modal shows the empty state, no errors.
 
 ## 4. Constraints
 
-- Scorer in `src/domain/` with no Obsidian imports, vitest-covered; modal section is UI glue (manual smoke). Native primitives, existing modal patterns, mobile touch targets. Performance: O(n) per modal open at 1,000 prompts is acceptable (NFR-1 scale). No network. `.claude/test-cmd` is authoritative and must not change.
+- Aggregator in `src/domain/` with no Obsidian imports, vitest-covered; modal is UI glue (manual smoke), native `Modal`, existing patterns, Obsidian CSS variables, mobile-friendly. Computation on modal open only. No network. `.claude/test-cmd` is authoritative and must not change.
 
 ## 5. Out of scope
 
-Body-content similarity (bodies not loaded in the modal), backlink-graph integration, a library-view "related" panel, embeddings or any semantic scoring.
+Charts/graph rendering (text and counts only), usage/copy tracking (parked N4), library-view embedding, exports of the stats.
