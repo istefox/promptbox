@@ -48,3 +48,53 @@ Key architectural decisions:
 - **No new deps surface:** candidate pools already exist on `PromptModalDeps`; zero `main.ts` changes.
 
 Detail: `docs/adr/0006-tag-category-suggestions.md`.
+
+## Decisions from the variable-profiles chain (ADR-0009)
+
+Named placeholder value sets in `data.json`, applied from a dropdown in the variable modal; never stored in notes.
+
+Key architectural decisions:
+- **Pure domain module `src/domain/variable-profiles.ts`:** normalize/match/apply/upsert, vitest-covered; tolerant load drops malformed entries.
+- **Narrow deps injection:** `VariableModalDeps` (profiles + saveProfile) built by `variableModalDeps()`, mirroring `PromptModalDeps`.
+- **Modal `display()` rebuild refactor:** state in `this.values`; the Enter-to-submit listener attaches once in `onOpen()`, never inside `display()` (duplicate-listener footgun).
+- **Dropdown lists only profiles with ≥1 matching key.**
+
+Detail: `docs/adr/0009-variable-profiles.md`.
+
+## Decisions from the vault-transclusion chain (ADR-0007)
+
+Wikilink transclusion at copy time: `[[target]]`/`![[target]]` resolve to the linked note's body (frontmatter stripped), depth cap 1, preview modal with sizes and 50k warning, copy-raw bypass.
+
+Key architectural decisions:
+- **Single-pass span assembler:** `assembleBody` splices wikilink and placeholder spans over the pristine original body in one pass; inserted content is never re-scanned for links or placeholders (FR-12.6).
+- **`copyWithVariables` gains `sourcePath`:** required for `getFirstLinkpathDest` disambiguation with duplicate basenames; the only signature change, 2 call sites.
+- **Resolution + preview in `src/ui/transclusion-modal.ts`;** detection stays pure in `src/domain/transclusion.ts` (vitest-covered).
+- **Heading/block refs (`#`, `^`) are unresolvable by design** and share the unresolved-links Notice.
+
+Detail: `docs/adr/0007-vault-transclusion.md`.
+
+## Decisions from the favorites chain (ADR-0004)
+
+Favorites: `favorite` boolean frontmatter field with star toggle, filter chip, favorites-first sort.
+
+Key architectural decisions:
+- **Silent tolerant parse:** `favorite` parses as `value === true` and never warns — the one deliberate exception to warn-on-invalid (FR-9.1).
+- **Orthogonal query flags:** `LibraryQuery` gains `favoritesOnly`/`favoritesFirst` booleans; no new SortKey variants.
+- **Picker ranking:** `rankFavoritesFirst<T>` reorders only at equal fuzzy score, preserving native relevance.
+- **Transfer allowlist unchanged:** `favorite` is intentionally excluded from JSON export/import (schema_version 1); revisit trigger in the ADR.
+- **Omit-on-false:** the frontmatter key is deleted when false, per the minimal-frontmatter convention.
+
+Detail: `docs/adr/0004-favorites.md`.
+
+## Decisions from the context-variables chain (ADR-0005)
+
+Context variables: reserved `{{@selection}}` `{{@title}}` `{{@date}}` `{{@clipboard}}` resolved at copy time.
+
+Key architectural decisions:
+- **Single parse, partition then merge:** one `parsePlaceholders` pass; context and user values merge into one resolution — never substitute-then-reparse (resolved text containing `{{...}}` must not re-parse).
+- **Pure classification, impure resolution:** `isContextVariable` lives in `src/domain/placeholders.ts` (vitest-covered); resolution lives in `src/ui/context-variables.ts`.
+- **Signature-stable entry points:** `copyWithVariables` keeps its exported signature, so both copy entry points gain the feature with zero call-site edits (FR-10.5).
+- **Asymmetric empties:** empty selection = unresolved (Notice); read-but-empty clipboard = resolved (no Notice).
+- **Reserved namespace:** bare `@` placeholder names are permanently reserved by FR-10.
+
+Detail: `docs/adr/0005-context-variables.md`.
