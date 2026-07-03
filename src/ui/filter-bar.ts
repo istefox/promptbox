@@ -61,6 +61,14 @@ export function renderFilterBar(
 		onChange();
 	});
 
+	const favoritesFirstLabel = row1.createEl("label", { cls: "promptbox-filters__favorites-first" });
+	const favoritesFirstCheckbox = favoritesFirstLabel.createEl("input", { type: "checkbox" });
+	favoritesFirstLabel.createSpan({ text: "Favorites first" });
+	favoritesFirstCheckbox.addEventListener("change", () => {
+		query.favoritesFirst = favoritesFirstCheckbox.checked;
+		onChange();
+	});
+
 	const clearBtn = row1.createEl("button", { text: "Clear filters", cls: "promptbox-filters__clear" });
 	clearBtn.addEventListener("click", () => {
 		Object.assign(query, emptyQuery());
@@ -69,6 +77,11 @@ export function renderFilterBar(
 
 	// Row 2 — taxonomy chips
 	const chipsRow = root.createDiv({ cls: "promptbox-filters__row promptbox-filters__chips-row" });
+	const favoritesChip = chipsRow.createEl("button", { text: "★ Favorites", cls: "promptbox-chip" });
+	favoritesChip.addEventListener("click", () => {
+		query.favoritesOnly = !query.favoritesOnly;
+		onChange();
+	});
 	const typeChips = chipsRow.createDiv({ cls: "promptbox-filters__group" });
 	const categoryChips = chipsRow.createDiv({ cls: "promptbox-filters__group" });
 	const tagChips = chipsRow.createDiv({ cls: "promptbox-filters__group" });
@@ -127,11 +140,13 @@ export function renderFilterBar(
 	function sync(): void {
 		if (search.value !== query.text) search.value = query.text;
 		sortSelect.value = query.sort;
+		favoritesFirstCheckbox.checked = query.favoritesFirst;
 		qualitySelect.value = query.minQuality === null ? "" : String(query.minQuality);
 		visibilitySelect.value = query.visibility ?? "";
 		fromInput.value = query.updatedRange?.from ?? "";
 		toInput.value = query.updatedRange?.to ?? "";
 		clearBtn.toggleClass("is-hidden", !isQueryActive(query));
+		favoritesChip.toggleClass("is-active", query.favoritesOnly);
 		renderChips(typeChips, "Type", current.types, query.types);
 		renderChips(categoryChips, "Category", current.categories, query.categories);
 		renderChips(tagChips, "Tags", current.tags, query.tags);

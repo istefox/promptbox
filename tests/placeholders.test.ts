@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parsePlaceholders, resolvePlaceholders } from "../src/domain/placeholders";
+import {
+	findConflictingVariableNames,
+	hasMalformedPlaceholders,
+	isContextVariable,
+	matchPlaceholders,
+	parsePlaceholders,
+	resolvePlaceholders,
+} from "../src/domain/placeholders";
 
 describe("parsePlaceholders (FR-4.1, FR-4.2)", () => {
 	it("parses the three syntax forms", () => {
@@ -81,5 +88,98 @@ describe("resolvePlaceholders (FR-4.2, FR-4.6)", () => {
 	it("keeps raw bodies for other templating systems intact when no values are provided", () => {
 		const jinja = "{% for x in items %}{{ x }}{% endfor %}";
 		expect(resolvePlaceholders(jinja, {})).toBe(jinja);
+	});
+});
+
+describe("hasMalformedPlaceholders (L1)", () => {
+	it("detects an unclosed opening", () => {
+		expect(hasMalformedPlaceholders("Hello {{name")).toBe(true);
+	});
+
+	it("detects malformed constructs the parser silently skips", () => {
+		expect(hasMalformedPlaceholders("{{}}")).toBe(true);
+		expect(hasMalformedPlaceholders("{{ }}")).toBe(true);
+		expect(hasMalformedPlaceholders("{{|def}}")).toBe(true);
+	});
+
+	it("detects more than three pipe segments", () => {
+		expect(hasMalformedPlaceholders("{{a|b|c|d}}")).toBe(true);
+	});
+
+	it("detects the dangling brace left behind by a nested construct", () => {
+		expect(hasMalformedPlaceholders("{{a{{b}}}}")).toBe(true);
+	});
+
+	it("is false for a body with only well-formed placeholders, or none", () => {
+		expect(hasMalformedPlaceholders("{{name|def|hint}} well-formed")).toBe(false);
+		expect(hasMalformedPlaceholders("no placeholders here")).toBe(false);
+	});
+});
+
+describe("findConflictingVariableNames (L2)", () => {
+	it("flags a name whose occurrences disagree on defaultValue", () => {
+		expect(findConflictingVariableNames("{{a|x}} … {{a|y}}")).toEqual(["a"]);
+	});
+
+	it("does not flag repeated occurrences with the same value", () => {
+		expect(findConflictingVariableNames("{{a|x}} {{a|x}}")).toEqual([]);
+	});
+
+	it("flags two independently-conflicting names in first-appearance order", () => {
+		expect(findConflictingVariableNames("{{b|1}} {{a|x}} {{b|2}} {{a|y}}")).toEqual(["b", "a"]);
+	});
+
+	it("flags a conflict between an option list and a plain default for the same name", () => {
+		expect(findConflictingVariableNames("{{t|a,b}} {{t|a}}")).toEqual(["t"]);
+	});
+});
+
+describe("matchPlaceholders", () => {
+	it("returns raw text, start/end offsets, and the parsed variable for each match", () => {
+		const body = "Hi {{name}}!";
+		expect(matchPlaceholders(body)).toEqual([
+			{ raw: "{{name}}", start: 3, end: 11, variable: { name: "name", defaultValue: "", hint: "" } },
+		]);
+	});
+
+	it("returns a null variable for malformed constructs, still with correct offsets", () => {
+		const body = "{{}} {{known}}";
+		const matches = matchPlaceholders(body);
+		expect(matches).toHaveLength(2);
+		expect(matches[0]).toEqual({ raw: "{{}}", start: 0, end: 4, variable: null });
+		expect(matches[1]?.variable?.name).toBe("known");
+	});
+
+	it("returns one entry per occurrence, not deduplicated by name", () => {
+		const matches = matchPlaceholders("{{who}} and {{who}}");
+		expect(matches).toHaveLength(2);
+		expect(matches[0]?.variable?.name).toBe("who");
+		expect(matches[1]?.variable?.name).toBe("who");
+	});
+});
+
+describe("isContextVariable (FR-10.1)", () => {
+	it("recognizes the four supported reserved names", () => {
+		expect(isContextVariable("@selection")).toBe(true);
+		expect(isContextVariable("@title")).toBe(true);
+		expect(isContextVariable("@date")).toBe(true);
+		expect(isContextVariable("@clipboard")).toBe(true);
+	});
+
+	it("rejects ordinary names", () => {
+		expect(isContextVariable("selection")).toBe(false);
+		expect(isContextVariable("")).toBe(false);
+		expect(isContextVariable("client")).toBe(false);
+	});
+
+	it("reserves the whole @ namespace, not just the four known names", () => {
+		expect(isContextVariable("@")).toBe(true);
+		expect(isContextVariable("@unknown")).toBe(true);
+	});
+
+	it("stays agnostic of @: the parser still returns @-names unchanged, ignoring is the caller's job", () => {
+		expect(parsePlaceholders("{{@title|fallback|hint}}")).toEqual([
+			{ name: "@title", defaultValue: "fallback", hint: "hint" },
+		]);
 	});
 });

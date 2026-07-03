@@ -7,6 +7,14 @@ Decisions are numbered, immutable once accepted (superseded by new ADRs, never e
 | [0001](0001-storage-markdown-frontmatter.md) | Store prompts as plain Markdown notes with YAML frontmatter | Accepted |
 | [0002](0002-ui-native-obsidian-components.md) | Build the UI on native Obsidian components with vanilla TypeScript | Accepted |
 | [0003](0003-community-distribution.md) | Distribute the community library via a GitHub-based catalog with a thin submission bridge | Proposed |
+| [0004](0004-favorites.md) | Favorites as a silent-tolerant Prompt field with orthogonal query flags | Accepted |
+| [0005](0005-context-variables.md) | Reserved `@` namespace for context variables, resolved via an isolated UI-layer resolver | Proposed |
+| [0006](0006-tag-category-suggestions.md) | Local keyword-frequency scorer for tag and category suggestions | Accepted |
+| [0007](0007-vault-transclusion.md) | Wikilink transclusion at copy time via a pure single-pass body assembler | Accepted |
 | [0008](0008-launcher-uri.md) | `obsidian://promptbox` launcher URI: pure-function lookup, cold-start-safe registration | Accepted |
-
-ADR-0004–0007 are reserved by Phase 1.5 features developed on sibling branches (not yet merged into this tree); their entries will appear here once merged.
+| [0009](0009-variable-profiles.md) | Store variable profiles in plugin settings behind a pure domain layer | Accepted |
+| [0010](0010-prompt-linter.md) | Prompt linter as pure domain rules with a shared per-render lint pass | Accepted |
+| [0011](0011-import-diff-preview.md) | Import-conflict diff preview | Accepted |
+| [0012](0012-related-prompts.md) | Related prompts: pure weighted-overlap scorer, surfaced read-only in the edit modal | Accepted |
+| [0013](0013-curated-packs.md) | Curated packs: additive pack header for export/import | Accepted |
+| [0014](0014-library-statistics.md) | Library statistics as a read-only report modal over a pure domain aggregator | Accepted |

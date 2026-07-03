@@ -3,16 +3,21 @@ import { mergeSettings, type PromptboxSettings } from "./settings";
 import { readPromptFromCache, stripFrontmatter } from "./storage/frontmatter";
 import { PromptIndex } from "./storage/indexer";
 import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
+import { LintModal } from "./ui/lint-modal";
 import { PromptModal } from "./ui/prompt-modal";
 import { PromptQuickPicker } from "./ui/quick-picker";
 import { collectVaultTags } from "./ui/suggest";
 import { ImportModal } from "./ui/import-modal";
-import { buildExport } from "./domain/transfer";
+import { StatsModal } from "./ui/stats-modal";
+import { buildExport, buildPackExport, type PackHeader } from "./domain/transfer";
+import { lintLibrary } from "./domain/lint";
 import { exportWithDialog } from "./storage/transfer-io";
 import type { Prompt } from "./domain/prompt";
 import { resolveLauncherLookup } from "./domain/launcher";
 import { copyRaw, copyWithVariables } from "./ui/copy";
+import { upsertProfile } from "./domain/variable-profiles";
 import { PromptboxSettingTab } from "./ui/settings-tab";
+import type { VariableModalDeps } from "./ui/variable-modal";
 
 export default class PromptboxPlugin extends Plugin {
 	override settings!: PromptboxSettings;
@@ -95,6 +100,17 @@ export default class PromptboxPlugin extends Plugin {
 			name: "Import prompts (JSON)",
 			callback: () => new ImportModal(this.app, this).open(),
 		});
+		this.addCommand({
+			id: "lint-library",
+			name: "Lint library",
+			callback: () =>
+				new LintModal(this.app, lintLibrary(this.index.getAll(), (p) => this.index.getBody(p))).open(),
+		});
+		this.addCommand({
+			id: "library-statistics",
+			name: "Library statistics",
+			callback: () => new StatsModal(this.app, this).open(),
+		});
 
 		// Deferred start: no vault I/O before the layout is ready (NFR-2).
 		this.indexReady = new Promise<void>((resolve) => {
@@ -141,7 +157,7 @@ export default class PromptboxPlugin extends Plugin {
 		}
 		const body = this.index.getBody(result.prompt.path);
 		if (raw) copyRaw(result.prompt.title, body);
-		else copyWithVariables(this.app, result.prompt.title, body);
+		else copyWithVariables(this.app, result.prompt.title, body, result.prompt.path, this.variableModalDeps());
 	}
 
 	async activateLibraryView(): Promise<void> {
@@ -176,11 +192,49 @@ export default class PromptboxPlugin extends Plugin {
 		}
 	}
 
+	/** FR-20.1: exports the given (typically filtered) set with a pack header. */
+	async exportPromptsAsPack(prompts: Prompt[], pack: PackHeader): Promise<void> {
+		if (prompts.length === 0) {
+			new Notice("Promptbox: nothing to export.");
+			return;
+		}
+		const doc = buildPackExport(
+			prompts,
+			(path) => this.index.getBody(path),
+			this.settings.promptsFolder,
+			new Date().toISOString(),
+			pack,
+		);
+		try {
+			const dest = await exportWithDialog(this.app, doc);
+			if (dest.kind === "cancelled") return;
+			const where = dest.kind === "picker" ? dest.name : `${dest.path} (vault root)`;
+			new Notice(`Exported ${prompts.length} prompt(s) to ${where}`);
+		} catch (error) {
+			new Notice(`Promptbox: export failed — ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+
+	/** Narrow deps for `VariableModal` (ADR-0009), mirrors `modalDeps()`. */
+	variableModalDeps(): VariableModalDeps {
+		return {
+			profiles: this.settings.profiles,
+			saveProfile: (name, values) => this.saveVariableProfile(name, values),
+		};
+	}
+
+	/** FR-14.3: save-as-profile, called from the variable modal. */
+	async saveVariableProfile(name: string, values: Record<string, string>): Promise<void> {
+		this.settings.profiles = upsertProfile(this.settings.profiles, name, values);
+		await this.saveSettings();
+	}
+
 	private modalDeps() {
 		return {
 			settings: this.settings,
 			folder: this.settings.promptsFolder,
 			tagPool: this.buildTagPool(),
+			allPrompts: this.index.getAll(),
 			persistSettings: () => this.saveSettings(),
 			openFile: (file: TFile) => {
 				void this.app.workspace.getLeaf(false).openFile(file);
