@@ -36,3 +36,15 @@ npm run lint     # eslint
 - Performance target is ~1,000 prompts; list virtualization is deferred until NFR-1 measurements demand it.
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
+
+## Decisions from the curated-packs chain (ADR-0013)
+
+Optional `pack: {name, description}` header on the existing export schema; "Export as pack…" from the filtered view; pack banner on import.
+
+Key architectural decisions:
+- **`buildExport`/`runImport` untouched:** `buildPackExport` composes, `runImport` reads only `doc.prompts` — the pack header never reaches notes by construction.
+- **Tolerant parse via `warnings: string[]`** on `ValidationResult` (NFR-8 idiom); bad pack values warn, never block.
+- **Pack-aware naming derived** from `doc.pack?.name` inside the existing naming helper; plain exports byte-identical to before.
+- **`schema_version` stays 1** — the key is additive and optional.
+
+Detail: `docs/adr/0013-curated-packs.md`.
