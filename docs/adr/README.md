@@ -18,3 +18,4 @@ Decisions are numbered, immutable once accepted (superseded by new ADRs, never e
 | [0012](0012-related-prompts.md) | Related prompts: pure weighted-overlap scorer, surfaced read-only in the edit modal | Accepted |
 | [0013](0013-curated-packs.md) | Curated packs: additive pack header for export/import | Accepted |
 | [0014](0014-library-statistics.md) | Library statistics as a read-only report modal over a pure domain aggregator | Accepted |
+| [0015](0015-usage-recency-tracking.md) | Usage recency tracking as plugin-local state in `data.json` keyed by path | Accepted |
