@@ -36,6 +36,23 @@
 	margin-right: var(--size-4-3);
 }
 
+/* Tag/category suggestion chip rows (FR-11.2) */
+.promptbox-suggestions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-2-2);
+	margin-top: var(--size-2-2);
+}
+
+.promptbox-filters__favorites-first {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+}
+
 .promptbox-chip {
 	font-size: var(--font-ui-smaller);
 	padding: var(--size-2-1) var(--size-2-3);
@@ -86,6 +103,7 @@
 .promptbox-item__warning {
 	color: var(--text-warning);
 	display: inline-flex;
+	cursor: pointer;
 }
 
 .promptbox-item__quality {
@@ -162,6 +180,15 @@
 	width: 100%;
 }
 
+.is-mobile .promptbox-filters__favorites-first {
+	min-height: 44px;
+}
+
+.is-mobile .promptbox-filters__favorites-first input[type="checkbox"] {
+	width: 20px;
+	height: 20px;
+}
+
 /* Item actions (FR-2.6) */
 .promptbox-item__actions {
 	display: flex;
@@ -176,6 +203,14 @@
 
 .promptbox-item__action:hover {
 	color: var(--text-normal);
+}
+
+.promptbox-item__action.is-favorite {
+	color: var(--text-accent);
+}
+
+.promptbox-item__action.is-favorite svg {
+	fill: currentColor;
 }
 
 /* Create / edit modal */
@@ -221,6 +256,19 @@
 	overflow-y: auto;
 }
 
+.promptbox-pack-export__error {
+	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
+}
+
+.promptbox-import__pack-info {
+	font-size: var(--font-ui-smaller);
+}
+
+.promptbox-import__pack-warning {
+	color: var(--text-warning);
+}
+
 .is-mobile .promptbox-library__count-row button {
 	min-height: 44px;
 }
@@ -247,6 +295,7 @@
 
 .promptbox-library__buttons {
 	display: flex;
+	flex-wrap: wrap;
 	gap: var(--size-4-2);
 }
 
@@ -289,6 +338,37 @@
 	resize: vertical;
 }
 
+/* Related section (ADR-0012, FR-19) */
+.promptbox-related {
+	margin-top: var(--size-4-3);
+	padding-top: var(--size-4-2);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.promptbox-related__heading {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	margin-bottom: var(--size-2-2);
+}
+
+.promptbox-related__item {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+	padding: var(--size-2-2) 0;
+}
+
+.promptbox-related__title {
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.is-mobile .promptbox-related__action {
+	min-height: 44px;
+	min-width: 44px;
+}
+
 /* Tags container with empty state (backlog 4) */
 .promptbox-tags-box {
 	display: flex;
@@ -326,6 +406,27 @@
 
 .promptbox-taxo-row .setting-item-control input[type="text"] {
 	flex: 1;
+}
+
+/* Transclusion preview modal (FR-12.5) */
+.promptbox-transclusion__list {
+	margin: 0 0 var(--size-4-2);
+	padding-left: var(--size-4-4);
+}
+
+.promptbox-transclusion__row {
+	overflow-wrap: anywhere;
+	font-size: var(--font-ui-small);
+}
+
+.promptbox-transclusion__total {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.promptbox-transclusion__warning {
+	color: var(--text-warning);
+	font-size: var(--font-ui-small);
 }
 
 /* Card refinements (backlog 12, 15) */
@@ -385,4 +486,49 @@
 
 .is-mobile .promptbox-stats__open-btn {
 	min-height: 44px;
+}
+
+/* Quick picker favorite indicator (FR-9.3) */
+.promptbox-picker__favorite {
+	display: inline-flex;
+	align-items: center;
+	margin-right: var(--size-2-2);
+	color: var(--text-accent);
+}
+
+/* Import overwrite diff preview (ADR-0011) */
+.promptbox-diff-preview {
+	max-height: 60vh;
+	overflow-y: auto;
+}
+
+.promptbox-diff-preview__item {
+	padding: var(--size-4-2) 0;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.promptbox-diff-preview__item:first-child {
+	border-top: none;
+}
+
+.promptbox-diff-preview__item h4 {
+	margin: 0 0 var(--size-2-2);
+	overflow-wrap: anywhere;
+}
+
+.promptbox-diff-preview__field {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-normal);
+}
+
+.promptbox-diff-preview__body {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	margin-top: var(--size-2-1);
+}
+
+.promptbox-diff-preview__identical {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	font-style: italic;
 }
