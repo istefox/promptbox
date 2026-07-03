@@ -5,12 +5,16 @@ import { buildOverwritePreview, runImport } from "../storage/transfer-io";
 import { ImportPreviewModal } from "./import-preview-modal";
 import { JsonFileSuggest } from "./suggest";
 
+const PACK_PREVIEW_DEBOUNCE_MS = 180;
+
 /** Import prompts from a versioned JSON export (FR-7.3). */
 export class ImportModal extends Modal {
 	private sourcePath = "";
 	private pasted = "";
 	private policy: ImportPolicy = "skip";
 	private errorsEl!: HTMLElement;
+	private packInfoEl!: HTMLElement;
+	private previewDebounce: number | undefined;
 
 	constructor(
 		app: App,
@@ -31,7 +35,10 @@ export class ImportModal extends Modal {
 			.addText((t) => {
 				t.setPlaceholder("promptbox-export-....json");
 				new JsonFileSuggest(this.app, t.inputEl);
-				t.onChange((v) => (this.sourcePath = v.trim()));
+				t.onChange((v) => {
+					this.sourcePath = v.trim();
+					void this.refreshPreview();
+				});
 			});
 
 		new Setting(contentEl)
@@ -39,8 +46,14 @@ export class ImportModal extends Modal {
 			.setDesc("Pasted content wins over the file when both are set.")
 			.addTextArea((t) => {
 				t.inputEl.rows = 6;
-				t.onChange((v) => (this.pasted = v));
+				t.onChange((v) => {
+					this.pasted = v;
+					window.clearTimeout(this.previewDebounce);
+					this.previewDebounce = window.setTimeout(() => void this.refreshPreview(), PACK_PREVIEW_DEBOUNCE_MS);
+				});
 			});
+
+		this.packInfoEl = contentEl.createDiv({ cls: "promptbox-import__pack-info" });
 
 		new Setting(contentEl)
 			.setName("On conflicts")
@@ -70,6 +83,28 @@ export class ImportModal extends Modal {
 		const file = this.app.vault.getAbstractFileByPath(this.sourcePath);
 		if (!(file instanceof TFile)) return null;
 		return this.app.vault.cachedRead(file);
+	}
+
+	/** Live pack summary/warning above the policy controls (FR-21.1, FR-21.2); silent on parse failure. */
+	private async refreshPreview(): Promise<void> {
+		try {
+			const text = await this.readSource();
+			this.packInfoEl.empty();
+			if (text === null) return;
+			const result = validateImport(JSON.parse(text));
+			if (result.ok && result.doc.pack) {
+				const { name, description } = result.doc.pack;
+				this.packInfoEl.createEl("strong", { text: `${name} — ${result.doc.prompts.length} prompt(s)` });
+				if (description !== "") this.packInfoEl.createEl("p", { text: description });
+			} else if (result.ok && result.warnings.length > 0) {
+				this.packInfoEl.createEl("p", {
+					text: result.warnings[0],
+					cls: "promptbox-import__pack-warning",
+				});
+			}
+		} catch {
+			this.packInfoEl.empty();
+		}
 	}
 
 	private showErrors(errors: string[]): void {

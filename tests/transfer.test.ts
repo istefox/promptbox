@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import { normalizePrompt, type Prompt } from "../src/domain/prompt";
 import {
 	buildExport,
+	buildPackExport,
 	diffImportEntry,
 	lineDelta,
+	parsePackHeader,
 	planImport,
 	validateImport,
 	type ExportDoc,
 	type ExportedPrompt,
+	type PackHeader,
 } from "../src/domain/transfer";
 
 function prompt(path: string, fm: Record<string, unknown>): Prompt {
@@ -211,6 +214,113 @@ describe("round trip (FR-7.4)", () => {
 		for (const original of doc.prompts) {
 			const restored = materialized.get(original.path);
 			expect(restored).toEqual(original);
+		}
+	});
+});
+
+describe("buildPackExport (FR-20.1)", () => {
+	it("attaches the given pack header; prompts match buildExport for the same inputs", () => {
+		const pack: PackHeader = { name: "Code Review Kit", description: "Prompts for reviewing PRs" };
+		const doc = buildPackExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z", pack);
+		expect(doc.pack).toEqual(pack);
+		const plain = buildExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z");
+		expect(doc.prompts).toEqual(plain.prompts);
+	});
+});
+
+describe("parsePackHeader (FR-21.1)", () => {
+	it("treats undefined and null as absent, no warning", () => {
+		expect(parsePackHeader(undefined)).toEqual({ pack: undefined, warning: null });
+		expect(parsePackHeader(null)).toEqual({ pack: undefined, warning: null });
+	});
+
+	it("parses a well-formed pack verbatim", () => {
+		const result = parsePackHeader({ name: "Code Review Kit", description: "For PRs" });
+		expect(result).toEqual({ pack: { name: "Code Review Kit", description: "For PRs" }, warning: null });
+	});
+
+	it("defaults description to empty string when omitted", () => {
+		const result = parsePackHeader({ name: "Code Review Kit" });
+		expect(result.warning).toBeNull();
+		expect(result.pack?.description).toBe("");
+	});
+
+	it("warns and drops the pack on a malformed root type (e.g. a bare string)", () => {
+		const result = parsePackHeader("oops");
+		expect(result.pack).toBeUndefined();
+		expect(result.warning).not.toBeNull();
+	});
+
+	it.each([{}, { name: "" }, { name: "   " }, { name: 42 }])(
+		"warns and drops the pack for %j",
+		(raw) => {
+			const result = parsePackHeader(raw);
+			expect(result.pack).toBeUndefined();
+			expect(result.warning).not.toBeNull();
+		},
+	);
+
+	it("warns and drops the whole pack when description has the wrong type (no partial repair)", () => {
+		const result = parsePackHeader({ name: "ok", description: 42 });
+		expect(result.pack).toBeUndefined();
+		expect(result.warning).not.toBeNull();
+	});
+
+	it("ignores unknown extra keys without warning", () => {
+		const result = parsePackHeader({ name: "Code Review Kit", description: "For PRs", extra: "ignored" });
+		expect(result.warning).toBeNull();
+		expect(result.pack).toEqual({ name: "Code Review Kit", description: "For PRs" });
+	});
+});
+
+describe("validateImport with pack (FR-21.1, FR-21.2)", () => {
+	it("a doc without a pack key stays plain: ok, no warnings, doc.pack undefined", () => {
+		const doc = buildExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z");
+		const result = validateImport(JSON.parse(JSON.stringify(doc)) as unknown);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.warnings).toEqual([]);
+		expect(result.doc.pack).toBeUndefined();
+	});
+
+	it("a doc with a well-formed pack surfaces it with no warnings", () => {
+		const pack: PackHeader = { name: "Code Review Kit", description: "For PRs" };
+		const doc = buildPackExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z", pack);
+		const result = validateImport(JSON.parse(JSON.stringify(doc)) as unknown);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.warnings).toEqual([]);
+		expect(result.doc.pack).toEqual(pack);
+		expect(result.doc.prompts.length).toBe(2);
+	});
+
+	it("a malformed pack ('oops') warns but still imports as plain", () => {
+		const doc = buildExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z");
+		const raw = { ...(JSON.parse(JSON.stringify(doc)) as Record<string, unknown>), pack: "oops" };
+		const result = validateImport(raw);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.doc.pack).toBeUndefined();
+		expect(result.warnings.length).toBe(1);
+	});
+
+	it("pre-existing hard-failure cases still yield ok:false unchanged", () => {
+		expect(validateImport({ schema_version: 2, prompts: [] }).ok).toBe(false);
+		expect(validateImport({ schema_version: 1, prompts: "no" }).ok).toBe(false);
+	});
+});
+
+describe("round trip with pack (FR-21.3, extends FR-7.4)", () => {
+	it("build → stringify/parse → validate reproduces the pack header and prompts, with no per-prompt pack key", () => {
+		const pack: PackHeader = { name: "Code Review Kit", description: "For PRs" };
+		const doc = buildPackExport(PROMPTS, getBody, "Prompts", "2026-07-02T10:00:00Z", pack);
+		const result = validateImport(JSON.parse(JSON.stringify(doc)) as unknown);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.doc.pack).toEqual(pack);
+		expect(result.doc.prompts).toEqual(doc.prompts);
+		for (const entry of result.doc.prompts) {
+			expect(Object.prototype.hasOwnProperty.call(entry, "pack")).toBe(false);
 		}
 	});
 });

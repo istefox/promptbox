@@ -19,10 +19,17 @@ export interface ExportedPrompt {
 	body: string;
 }
 
+/** Optional pack header layered on the export schema (FR-20). */
+export interface PackHeader {
+	name: string;
+	description: string;
+}
+
 export interface ExportDoc {
 	schema_version: typeof SCHEMA_VERSION;
 	exported_at: string;
 	prompts: ExportedPrompt[];
+	pack?: PackHeader;
 }
 
 /** Maps a `Prompt` + its note body into the transfer wire shape (FR-7.2). */
@@ -59,7 +66,41 @@ export function buildExport(
 	};
 }
 
-export type ValidationResult = { ok: true; doc: ExportDoc } | { ok: false; errors: string[] };
+/** Composes `buildExport` with a pack header, leaving `buildExport` itself untouched (FR-20.1). */
+export function buildPackExport(
+	prompts: Prompt[],
+	getBody: (path: string) => string,
+	folder: string,
+	exportedAt: string,
+	pack: PackHeader,
+): ExportDoc {
+	return { ...buildExport(prompts, getBody, folder, exportedAt), pack };
+}
+
+/**
+ * Tolerant pack-header parse (NFR-8 idiom): a malformed value never blocks
+ * import, it degrades to a single warning and `pack: undefined` (FR-21.1).
+ */
+export function parsePackHeader(raw: unknown): { pack: PackHeader | undefined; warning: string | null } {
+	if (raw === undefined || raw === null) return { pack: undefined, warning: null };
+	if (typeof raw !== "object" || Array.isArray(raw)) {
+		return { pack: undefined, warning: "pack: expected an object" };
+	}
+	const r = raw as Record<string, unknown>;
+	const name = r["name"];
+	if (typeof name !== "string" || name.trim() === "") {
+		return { pack: undefined, warning: "pack.name: expected a non-empty string" };
+	}
+	const descriptionRaw = r["description"];
+	if (descriptionRaw !== undefined && typeof descriptionRaw !== "string") {
+		return { pack: undefined, warning: "pack.description: expected a string" };
+	}
+	return { pack: { name: name.trim(), description: descriptionRaw ?? "" }, warning: null };
+}
+
+export type ValidationResult =
+	| { ok: true; doc: ExportDoc; warnings: string[] }
+	| { ok: false; errors: string[] };
 
 function safeRelativePath(path: string): boolean {
 	if (path === "" || !path.endsWith(".md")) return false;
@@ -133,7 +174,12 @@ export function validateImport(parsed: unknown): ValidationResult {
 
 	if (errors.length > 0) return { ok: false, errors };
 	const exportedAt = typeof root["exported_at"] === "string" ? root["exported_at"] : "";
-	return { ok: true, doc: { schema_version: SCHEMA_VERSION, exported_at: exportedAt, prompts } };
+	const { pack, warning } = parsePackHeader(root["pack"]);
+	return {
+		ok: true,
+		doc: { schema_version: SCHEMA_VERSION, exported_at: exportedAt, prompts, ...(pack !== undefined ? { pack } : {}) },
+		warnings: warning !== null ? [warning] : [],
+	};
 }
 
 export type ImportPolicy = "skip" | "overwrite" | "duplicate";

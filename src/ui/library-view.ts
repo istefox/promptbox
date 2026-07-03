@@ -9,6 +9,7 @@ import { copyRaw, copyWithVariables } from "./copy";
 import { ImportModal } from "./import-modal";
 import { LintModal } from "./lint-modal";
 import { openNote } from "./open-note";
+import { PackExportModal } from "./pack-export-modal";
 import { renderFilterBar, type FilterBarHandle, type FilterOptions } from "./filter-bar";
 
 export const VIEW_TYPE_LIBRARY = "promptbox-library";
@@ -59,6 +60,18 @@ export class PromptboxLibraryView extends ItemView {
 		exportBtn.addEventListener("click", () => {
 			const index = this.plugin.index;
 			void this.plugin.exportPrompts(runQuery(index.getAll(), (p) => index.getBody(p), this.query));
+		});
+		const exportPackBtn = buttons.createEl("button", { text: "Export as pack…" });
+		exportPackBtn.addEventListener("click", () => {
+			const index = this.plugin.index;
+			const filtered = runQuery(index.getAll(), (p) => index.getBody(p), this.query);
+			if (filtered.length === 0) {
+				new Notice("Promptbox: nothing to export.");
+				return;
+			}
+			new PackExportModal(this.app, filtered.length, (pack) => {
+				void this.plugin.exportPromptsAsPack(filtered, pack);
+			}).open();
 		});
 		const importBtn = buttons.createEl("button", { text: "Import" });
 		importBtn.addEventListener("click", () => new ImportModal(this.app, this.plugin).open());
