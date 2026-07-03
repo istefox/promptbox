@@ -37,6 +37,18 @@ npm run lint     # eslint
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
 
+## Decisions from the launcher-uri chain (ADR-0008)
+
+`obsidian://promptbox` URI action: `path`/`title` lookup, `raw=true`, no-params → quick picker.
+
+Key architectural decisions:
+- **Readiness gate:** the protocol handler registers at the top of `onload`; the lookup work awaits an `indexReady` promise resolved after the first index scan (cold-start URI safety).
+- **Pure lookup:** `resolveLauncherLookup` in `src/domain/launcher.ts` returns a discriminated union (`picker`/`match`/`no-match`), vitest-covered; Notice text stays in `main.ts`.
+- **`path` outranks `title`** when both are supplied; title ties break by newest `updated`, then path ascending.
+- **`raw=true` also applies to the picker fallback.**
+
+Detail: `docs/adr/0008-launcher-uri.md`.
+
 ## Decisions from the library-statistics chain (ADR-0014)
 
 Read-only stats modal: totals, taxonomy counts (top-10 tags), quality distribution, 10 oldest, orphan taxonomy values with usage counts.

@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile } from "obsidian";
+import { Notice, Plugin, TFile, type ObsidianProtocolData } from "obsidian";
 import { mergeSettings, type PromptboxSettings } from "./settings";
 import { readPromptFromCache, stripFrontmatter } from "./storage/frontmatter";
 import { PromptIndex } from "./storage/indexer";
@@ -13,6 +13,8 @@ import { buildExport, buildPackExport, type PackHeader } from "./domain/transfer
 import { lintLibrary } from "./domain/lint";
 import { exportWithDialog } from "./storage/transfer-io";
 import type { Prompt } from "./domain/prompt";
+import { resolveLauncherLookup } from "./domain/launcher";
+import { copyRaw, copyWithVariables } from "./ui/copy";
 import { upsertProfile } from "./domain/variable-profiles";
 import { PromptboxSettingTab } from "./ui/settings-tab";
 import type { VariableModalDeps } from "./ui/variable-modal";
@@ -20,6 +22,7 @@ import type { VariableModalDeps } from "./ui/variable-modal";
 export default class PromptboxPlugin extends Plugin {
 	override settings!: PromptboxSettings;
 	index!: PromptIndex;
+	private indexReady!: Promise<void>;
 
 	override async onload(): Promise<void> {
 		this.settings = mergeSettings(await this.loadData());
@@ -38,6 +41,10 @@ export default class PromptboxPlugin extends Plugin {
 			},
 			this.settings.promptsFolder,
 		);
+
+		this.registerObsidianProtocolHandler("promptbox", (params) => {
+			void this.handleLauncherUri(params);
+		});
 
 		this.registerView(VIEW_TYPE_LIBRARY, (leaf) => new PromptboxLibraryView(leaf, this));
 		this.addRibbonIcon("library", "Open Promptbox library", () => {
@@ -106,29 +113,51 @@ export default class PromptboxPlugin extends Plugin {
 		});
 
 		// Deferred start: no vault I/O before the layout is ready (NFR-2).
-		this.app.workspace.onLayoutReady(() => {
-			void this.index.scan();
-			this.registerEvent(
-				this.app.metadataCache.on("changed", (file) => {
-					if (file instanceof TFile) void this.index.handleCreateOrModify(file.path);
-				}),
-			);
-			this.registerEvent(
-				this.app.vault.on("create", (file) => {
-					if (file instanceof TFile) void this.index.handleCreateOrModify(file.path);
-				}),
-			);
-			this.registerEvent(
-				this.app.vault.on("delete", (file) => {
-					if (file instanceof TFile) this.index.handleDelete(file.path);
-				}),
-			);
-			this.registerEvent(
-				this.app.vault.on("rename", (file, oldPath) => {
-					if (file instanceof TFile) void this.index.handleRename(oldPath, file.path);
-				}),
-			);
+		this.indexReady = new Promise<void>((resolve) => {
+			this.app.workspace.onLayoutReady(() => {
+				void this.index.scan().then(() => resolve());
+				this.registerEvent(
+					this.app.metadataCache.on("changed", (file) => {
+						if (file instanceof TFile) void this.index.handleCreateOrModify(file.path);
+					}),
+				);
+				this.registerEvent(
+					this.app.vault.on("create", (file) => {
+						if (file instanceof TFile) void this.index.handleCreateOrModify(file.path);
+					}),
+				);
+				this.registerEvent(
+					this.app.vault.on("delete", (file) => {
+						if (file instanceof TFile) this.index.handleDelete(file.path);
+					}),
+				);
+				this.registerEvent(
+					this.app.vault.on("rename", (file, oldPath) => {
+						if (file instanceof TFile) void this.index.handleRename(oldPath, file.path);
+					}),
+				);
+			});
 		});
+	}
+
+	/** FR-13: `obsidian://promptbox` launcher URI action. Waits on the first index scan (ADR-0008). */
+	private async handleLauncherUri(params: ObsidianProtocolData): Promise<void> {
+		await this.indexReady;
+		const path = typeof params.path === "string" ? params.path : undefined;
+		const title = typeof params.title === "string" ? params.title : undefined;
+		const raw = params.raw === "true";
+		const result = resolveLauncherLookup(this.index.getAll(), { path, title });
+		if (result.kind === "picker") {
+			new PromptQuickPicker(this.app, this, raw).open();
+			return;
+		}
+		if (result.kind === "no-match") {
+			new Notice(`Promptbox: no prompt matching ${result.source} "${result.value}".`);
+			return;
+		}
+		const body = this.index.getBody(result.prompt.path);
+		if (raw) copyRaw(result.prompt.title, body);
+		else copyWithVariables(this.app, result.prompt.title, body, result.prompt.path, this.variableModalDeps());
 	}
 
 	async activateLibraryView(): Promise<void> {
