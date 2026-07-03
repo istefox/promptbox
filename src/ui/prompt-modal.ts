@@ -1,6 +1,7 @@
-import { Modal, Notice, setIcon, Setting, type App, type TFile } from "obsidian";
+import { Modal, Notice, setIcon, setTooltip, Setting, type App, type TFile } from "obsidian";
 import { bumpVersion, type PromptDraft } from "../domain/draft";
 import { VISIBILITIES, type Prompt, type Visibility } from "../domain/prompt";
+import { relatedPrompts } from "../domain/related";
 import type { PromptboxSettings } from "../settings";
 import { createPrompt, updatePrompt } from "../storage/prompt-writer";
 import { TagSuggest } from "./suggest";
@@ -12,6 +13,8 @@ export interface PromptModalDeps {
 	folder: string;
 	/** Tag pool for suggestions: prompt-library tags first, vault-wide after (backlog 8). */
 	tagPool: string[];
+	/** Full snapshot of the index, used to compute the Related section (ADR-0012). */
+	allPrompts: Prompt[];
 	persistSettings: () => Promise<void>;
 	openFile?: (file: TFile) => void;
 }
@@ -54,6 +57,8 @@ const NEW_VALUE = "__promptbox_new__";
 /** Create / edit metadata modal (FR-3.1, FR-3.2). Body editing stays in the editor (FR-3.3). */
 export class PromptModal extends Modal {
 	private readonly draft: PromptDraft;
+	/** Related prompts, computed once at open time (FR-19.2); display() only reads it. */
+	private readonly related: Prompt[];
 	private titleInput: HTMLInputElement | null = null;
 	/** Which taxonomy field is showing its inline "new value" row (backlog 13). */
 	private addingValueFor: "type" | "category" | null = null;
@@ -66,6 +71,7 @@ export class PromptModal extends Modal {
 	) {
 		super(app);
 		this.draft = draftFrom(mode, deps.settings);
+		this.related = mode.kind === "edit" ? relatedPrompts(mode.prompt, deps.allPrompts, 5) : [];
 	}
 
 	override onOpen(): void {
@@ -189,6 +195,8 @@ export class PromptModal extends Modal {
 				);
 		}
 
+		this.renderRelated();
+
 		new Setting(contentEl)
 			.addButton((b) =>
 				b
@@ -263,6 +271,31 @@ export class PromptModal extends Modal {
 					this.display();
 				}),
 			);
+	}
+
+	/** Read-only "Related" section (FR-19.1); absent in create mode or with no matches. */
+	private renderRelated(): void {
+		if (this.related.length === 0) return;
+		const section = this.contentEl.createDiv({ cls: "promptbox-related" });
+		section.createDiv({ text: "Related", cls: "promptbox-related__heading" });
+		for (const prompt of this.related) {
+			const item = section.createDiv({ cls: "promptbox-related__item" });
+			item.createSpan({ text: prompt.title, cls: "promptbox-related__title" });
+			item.createSpan({ text: prompt.type, cls: "promptbox-pill promptbox-pill--type" });
+			const action = item.createEl("button", { cls: "promptbox-related__action clickable-icon" });
+			setIcon(action, "file-text");
+			action.setAttribute("aria-label", "Open as note");
+			setTooltip(action, "Open as note");
+			action.addEventListener("click", () => {
+				const file = this.app.vault.getFileByPath(prompt.path);
+				if (!file) {
+					new Notice("Note not found — the index may be stale.");
+					return;
+				}
+				this.deps.openFile?.(file);
+				this.close();
+			});
+		}
 	}
 
 	private async submit(): Promise<void> {

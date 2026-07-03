@@ -12,7 +12,7 @@ Tasks are ordered by dependency: 1 (domain) unblocks 2 (deps wiring), which unbl
 
 ## Tasks
 
-- [ ] **1. Domain scorer and ranking — `similarityScore` and `relatedPrompts`**
+- [x] **1. Domain scorer and ranking — `similarityScore` and `relatedPrompts`**
   - **Goal:** implement FR-18.1 (weighted-sum scorer) and FR-18.2 (`relatedPrompts` ranking) as pure functions, TDD (write the failing tests first, from the list below, then implement).
   - **Files:** create `src/domain/related.ts` (no Obsidian imports), create `tests/related.test.ts`.
   - **Test (`tests/related.test.ts`, vitest):** reuse the `p(path, fm)` fixture-building idiom already used in `tests/query.test.ts` (wraps `normalizePrompt`). Cover:
@@ -31,7 +31,7 @@ Tasks are ordered by dependency: 1 (domain) unblocks 2 (deps wiring), which unbl
     - `relatedPrompts`: tie-break — equal score and equal `updated`, `path` ascending.
     - `relatedPrompts`: `limit` defaults to 5 when omitted; an explicit smaller `limit` truncates to the top-N by score.
 
-- [ ] **2. Thread `allPrompts` through the modal deps**
+- [x] **2. Thread `allPrompts` through the modal deps**
   - **Goal:** make a full `Prompt[]` snapshot available to `PromptModal` via the existing narrow-deps pattern, with no behavior change for current callers.
   - **Files:** modify `src/ui/prompt-modal.ts` (add `allPrompts: Prompt[]` to the `PromptModalDeps` interface only — do not consume it yet, that is Task 3); modify `src/main.ts` (`modalDeps()` adds `allPrompts: this.index.getAll()` next to the existing `tagPool: this.buildTagPool()`).
   - **Contract change:** `PromptModalDeps` gains one required field. Grep already run for this plan, full result: the interface is declared once (`src/ui/prompt-modal.ts:10`) and consumed as a constructor parameter type once (`src/ui/prompt-modal.ts:63`); the only production call-site building this shape is `main.ts`'s `modalDeps()` (`src/main.ts:150`), used by exactly two callers (`src/main.ts:172` `openCreateModal`, `src/main.ts:182` `openEditModal`), both of which need no change themselves since they consume `modalDeps()`'s return value. No test file constructs a `PromptModalDeps` literal (no `prompt-modal.test.ts` exists). This is a fully additive, backward-compatible widening.
@@ -55,11 +55,13 @@ Tasks are ordered by dependency: 1 (domain) unblocks 2 (deps wiring), which unbl
     - open "New prompt" (create mode) → section absent.
     - click "open as note" on a related row → modal closes, the correct note opens in the active leaf; no console errors.
     - on a touch/mobile layout → the action button meets the 44px touch target, consistent with existing item actions.
+  - **Coder status (no live Obsidian instance available):** implementation done, `npm run build && npm run lint && npm test` all pass. First 3 smoke criteria verified by code trace (section-visibility guard, create-mode `related = []`, no score field ever created). Last 2 (click-to-open runtime behavior, mobile touch-target rendering) need a live vault — checkbox intentionally left unchecked, flagged for the orchestrator/user.
 
 - [ ] **4. Full verification pass**
   - **Goal:** confirm the change is safe project-wide, not just for the new module, before it is considered done.
   - **Files:** none (verification only).
   - **Test:** run `npm run build && npm run lint && npm test` — the **full** suite, not filtered to `tests/related.test.ts`, because Task 2 widens the shared `PromptModalDeps` interface and a contract change can break assumptions in unrelated tests even when it looks purely additive. Then, in a live vault: re-walk all four `SPEC.md` §3 acceptance criteria end-to-end (listed under Task 3); confirm `.claude/test-cmd` is unchanged; confirm no new settings, frontmatter fields, or network calls were introduced (FR-19.3 self-check); confirm the plugin still loads and unloads cleanly with no console errors.
+  - **Coder status (no live Obsidian instance available):** `npm run build && npm run lint && npm test` ran green (80/80 tests, 9 files). `.claude/test-cmd` was not read or modified. Source diff confirms no new settings, frontmatter fields, or network calls were introduced. The live-vault walk-through and console-error check are unverified — checkbox intentionally left unchecked, flagged for the orchestrator/user.
 
 ## Notes for the coder
 
