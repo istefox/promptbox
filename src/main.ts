@@ -10,7 +10,9 @@ import { ImportModal } from "./ui/import-modal";
 import { buildExport } from "./domain/transfer";
 import { exportWithDialog } from "./storage/transfer-io";
 import type { Prompt } from "./domain/prompt";
+import { upsertProfile } from "./domain/variable-profiles";
 import { PromptboxSettingTab } from "./ui/settings-tab";
+import type { VariableModalDeps } from "./ui/variable-modal";
 
 export default class PromptboxPlugin extends Plugin {
 	override settings!: PromptboxSettings;
@@ -145,6 +147,20 @@ export default class PromptboxPlugin extends Plugin {
 		} catch (error) {
 			new Notice(`Promptbox: export failed — ${error instanceof Error ? error.message : String(error)}`);
 		}
+	}
+
+	/** Narrow deps for `VariableModal` (ADR-0009), mirrors `modalDeps()`. */
+	variableModalDeps(): VariableModalDeps {
+		return {
+			profiles: this.settings.profiles,
+			saveProfile: (name, values) => this.saveVariableProfile(name, values),
+		};
+	}
+
+	/** FR-14.3: save-as-profile, called from the variable modal. */
+	async saveVariableProfile(name: string, values: Record<string, string>): Promise<void> {
+		this.settings.profiles = upsertProfile(this.settings.profiles, name, values);
+		await this.saveSettings();
 	}
 
 	private modalDeps() {

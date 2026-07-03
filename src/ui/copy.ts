@@ -1,6 +1,6 @@
 import { Notice, type App } from "obsidian";
 import { parsePlaceholders, resolvePlaceholders } from "../domain/placeholders";
-import { VariableModal } from "./variable-modal";
+import { VariableModal, type VariableModalDeps } from "./variable-modal";
 
 /** Clipboard write with an explicit, mobile-safe failure path (NFR-3). */
 export async function writeClipboard(text: string, label: string): Promise<void> {
@@ -19,13 +19,13 @@ export async function writeClipboard(text: string, label: string): Promise<void>
  * otherwise the variable form collects values and the resolved body is copied
  * on confirm; cancel copies nothing (FR-4.2, FR-4.3).
  */
-export function copyWithVariables(app: App, title: string, body: string): void {
+export function copyWithVariables(app: App, title: string, body: string, deps: VariableModalDeps): void {
 	const variables = parsePlaceholders(body);
 	if (variables.length === 0) {
 		void writeClipboard(body, title);
 		return;
 	}
-	new VariableModal(app, variables, (values) => {
+	new VariableModal(app, variables, deps, (values) => {
 		void writeClipboard(resolvePlaceholders(body, values), title);
 	}).open();
 }
