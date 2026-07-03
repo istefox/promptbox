@@ -37,6 +37,18 @@ npm run lint     # eslint
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
 
+## Decisions from the tag-category-suggestions chain (ADR-0006)
+
+Suggestion chips (tags top-5, category top-3) in the prompt modal, scored locally, never auto-applied.
+
+Key architectural decisions:
+- **One shared scorer:** generic pure `suggestValues(text, candidates, selected, limit)` in `src/domain/suggestions.ts` serves both fields; reuse it for future similarity features.
+- **Scoped re-render:** debounced keystroke refresh touches only the suggestion containers; `display()` full rebuild stays reserved for click/select events (focus-loss guard).
+- **Edit mode scores title + use_case only:** the edit modal has no body by design (FR-3.2); documented gap, not an oversight.
+- **No new deps surface:** candidate pools already exist on `PromptModalDeps`; zero `main.ts` changes.
+
+Detail: `docs/adr/0006-tag-category-suggestions.md`.
+
 ## Decisions from the variable-profiles chain (ADR-0009)
 
 Named placeholder value sets in `data.json`, applied from a dropdown in the variable modal; never stored in notes.

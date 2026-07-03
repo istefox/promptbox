@@ -36,6 +36,15 @@
 	margin-right: var(--size-4-3);
 }
 
+/* Tag/category suggestion chip rows (FR-11.2) */
+.promptbox-suggestions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-2-2);
+	margin-top: var(--size-2-2);
+}
+
 .promptbox-filters__favorites-first {
 	display: flex;
 	align-items: center;

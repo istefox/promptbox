@@ -1,39 +1,37 @@
-# SPEC — Saved variable profiles (Phase 1.5, from competitive-analysis §6 N2)
+# SPEC — Tag and category suggestions (Phase 1.5, from competitive-analysis §4 P2a)
 
-**Topic slug:** variable-profiles
+**Topic slug:** tag-category-suggestions
 
 | | |
 |---|---|
-| Source | `docs/competitive-analysis.md` §6 N2 (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
-| Depends on | Tier 4 variable modal (met); ADR-0001, ADR-0002 binding |
+| Source | `docs/competitive-analysis.md` §4 P2a (approved 2026-07-03), `PROJECT.md` Phase 1.5 |
+| Depends on | Tier 3 modals (met); ADR-0001, ADR-0002 binding |
 | Effort | M |
 
 ## 1. Purpose
 
-Named value sets for placeholders (e.g. profile "Acme" fills `client`, `tone`, `context`), selectable in the variable modal. Recurring answers stop being retyped. Profiles are ephemeral input aids stored in `data.json`, never in the notes — notes stay the single source of truth for prompts.
+Suggest — never auto-write — tags and a category in the create/edit prompt modal, scored locally from the draft's text against the existing taxonomy and vault tags. Keeps the taxonomy consistent as the library grows (US-5) with zero network and zero silent writes.
 
 ## 2. Requirements
 
-### FR-14 Variable profiles (MUST)
+### FR-11 Suggestions (MUST)
 
-- FR-14.1 Data model in plugin settings (`data.json`): a list of profiles, each `{ name: string, values: Record<string,string> }`. Profile names unique (case-insensitive); values map placeholder names to fill values. Tolerant load: malformed entries dropped silently, never a crash (NFR-8 pattern).
-- FR-14.2 Variable modal: when at least one saved profile has at least one key matching the prompt's variables, a profile dropdown appears at the top ("No profile" default). Selecting a profile prefills matching fields, overwriting their current content; non-matching fields keep their values; the user can still edit every field afterwards. Selecting "No profile" changes nothing.
-- FR-14.3 Save-as-profile: a "Save as profile…" action in the variable modal stores the currently entered values under a new or existing name (explicit user action; name prompt inline in the modal). Saving under an existing name overwrites that profile after the same explicit action.
-- FR-14.4 Management in settings tab: list existing profiles with rename and delete controls (delete with confirmation), following the existing taxonomy-editor patterns (FR-8.2 style).
-- FR-14.5 Profile application is a pure domain function (given profile values + current field values + variable names → next field values), vitest-covered.
+- FR-11.1 Pure domain scorer (`src/domain/`): input = draft text (title, use_case, body) plus candidate values (category values from settings, tag values from the index and vault); output = ranked suggestions with deterministic, case-insensitive keyword-frequency scoring. Top 5 tags and top 3 categories, minimum score threshold so unrelated values never surface.
+- FR-11.2 Prompt modal (create and edit): a suggestion chip row under the tags field and under the category dropdown. Clicking a chip applies that value to the field, an explicit user action. Suggestions recompute on title/use_case/body input, debounced (reuse the existing debounce helper pattern).
+- FR-11.3 Suggestions are never auto-applied and never touch a note; frontmatter changes still happen only through the modal's save (spec §3.2 rule: no writes except explicit user actions).
+- FR-11.4 Values already selected in the field are excluded from its suggestions. Zero suggestions → the chip row is hidden entirely. Malformed or empty candidate data never crashes the modal (NFR-8).
 
 ## 3. Acceptance criteria
 
-- Profile "Acme" `{client: "Acme Corp", tone: "formal"}`; prompt with `{{client}}` and `{{topic}}`: dropdown appears; selecting "Acme" fills `client`, leaves `topic`; clipboard reflects edits made after application.
-- Prompt with no matching variable names: no dropdown rendered.
-- "Save as profile…" with name "Acme" after editing values updates the stored profile.
-- Deleting a profile in settings asks confirmation and removes it from `data.json`.
-- Malformed profile entry in `data.json` (missing name) is ignored without breaking the modal.
+- Draft body mentioning "review the pull request diff" with an existing tag `code-review`: the tags chip row shows `code-review`; clicking it adds the tag chip to the field; nothing is written until save.
+- Category `writing` exists in settings; a draft about email drafting surfaces `writing` under the category dropdown; clicking selects it.
+- A tag already added to the draft does not reappear as a suggestion.
+- Empty body and title → no suggestion rows rendered.
 
 ## 4. Constraints
 
-- Profiles live exclusively in `data.json` (spec §3.3: the settings file is the only plugin-owned artifact outside notes). Never written into frontmatter or note bodies. Native primitives (ADR-0002); dropdown and buttons follow existing modal patterns; mobile touch targets. No network. `.claude/test-cmd` is authoritative and must not change.
+- Scorer is a pure function with no Obsidian imports, vitest-covered (repo testing-boundary convention). UI chips follow the existing chips patterns in `prompt-modal.ts`/`filter-bar.ts`, native primitives only, Obsidian CSS variables, touch-friendly. No network. `.claude/test-cmd` is authoritative and must not change.
 
 ## 5. Out of scope
 
-Per-prompt default profiles, profile export/import (JSON transfer schema stays v1 untouched), context variables interplay (sibling branch), multi-profile merge.
+AI/semantic tagging (conflicts with NFR-5, see §5 of the analysis), auto-tagging on import, suggestions outside the modal, new settings.
