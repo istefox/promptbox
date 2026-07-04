@@ -179,3 +179,17 @@ Key architectural decisions:
 - **Lazy prune plus rename migration:** orphan keys drop after the first index scan; a vault rename migrates the key; out-of-Obsidian renames self-heal on the next prune.
 
 Detail: `docs/adr/0015-usage-recency-tracking.md`.
+
+## Decisions from the placeholder-insertion-palette chain (ADR-0016)
+
+Placeholder insertion palette: a command, inline `{{` autocomplete, a create-modal button, and a create-modal textarea autocomplete, all offering context variables, reused library placeholder names, and syntax templates.
+
+Key architectural decisions:
+- **One pure core:** `src/domain/placeholder-palette.ts` (`buildPaletteCatalog`, `matchPlaceholderTrigger`, `filterCatalog`, `caretRangeAfterInsert`) is the single vitest-covered source of catalog content, order, trigger detection, filtering, and caret math; the four UI surfaces are thin consumers.
+- **Shared UI, no duplication:** one `SuggestModal` (`PlaceholderPaletteModal`) serves both the command and the create-modal button; two appliers `applyEntryToEditor`/`applyEntryToTextarea` splice on either surface.
+- **Substring filter, not fuzzy:** a plain `SuggestModal` plus the shared `filterCatalog` (case-insensitive `.includes`, never-empty fallback to context vars and templates) so `EditorSuggest` and the hand-rolled dropdown filter identically.
+- **Textarea needs hand-rolled DOM:** `AbstractInputSuggest` accepts only input/div, never a `<textarea>` (FR-24.6); its inline autocomplete is bespoke DOM, the recorded weak-ROI trade-off.
+- **Catalog order:** context variables, then library names by usage frequency, then syntax templates; a template inserts with its `name` segment selected.
+- **Lifecycle:** `EditorSuggest` via `registerEditorSuggest`; textarea listeners removed on modal close; no leak on unload. No frontmatter, no `data.json`, no network.
+
+Detail: `docs/adr/0016-placeholder-insertion-palette.md`.

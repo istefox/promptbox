@@ -544,3 +544,26 @@
 	color: var(--text-muted);
 	font-style: italic;
 }
+
+/* Placeholder insertion palette: hand-rolled textarea dropdown (FR-24.6) */
+.promptbox-placeholder-host {
+	position: relative;
+}
+
+.promptbox-placeholder-dropdown {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	z-index: var(--layer-popover);
+	max-height: 200px;
+	overflow-y: auto;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	box-shadow: var(--shadow-s);
+}
+
+.promptbox-placeholder-dropdown.is-hidden {
+	display: none;
+}

@@ -7,6 +7,10 @@ import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
 import { LintModal } from "./ui/lint-modal";
 import { PromptModal } from "./ui/prompt-modal";
 import { PromptQuickPicker } from "./ui/quick-picker";
+import { buildPaletteCatalog, type PaletteEntry } from "./domain/placeholder-palette";
+import { PlaceholderEditorSuggest } from "./ui/placeholder-editor-suggest";
+import { PlaceholderPaletteModal } from "./ui/placeholder-palette-modal";
+import { applyEntryToEditor } from "./ui/placeholder-ui";
 import { collectVaultTags } from "./ui/suggest";
 import { ImportModal } from "./ui/import-modal";
 import { StatsModal } from "./ui/stats-modal";
@@ -57,6 +61,8 @@ export default class PromptboxPlugin extends Plugin {
 			void this.handleLauncherUri(params);
 		});
 
+		this.registerEditorSuggest(new PlaceholderEditorSuggest(this.app, this));
+
 		this.registerView(VIEW_TYPE_LIBRARY, (leaf) => new PromptboxLibraryView(leaf, this));
 		this.addRibbonIcon("library", "Open Promptbox library", () => {
 			void this.activateLibraryView();
@@ -87,6 +93,22 @@ export default class PromptboxPlugin extends Plugin {
 					file.path.startsWith(this.settings.promptsFolder + "/");
 				if (checking) return inFolder;
 				if (inFolder) this.openEditModal(file.path);
+				return inFolder;
+			},
+		});
+
+		this.addCommand({
+			id: "insert-placeholder",
+			name: "Insert placeholder",
+			editorCheckCallback: (checking, editor, ctx) => {
+				const inFolder = ctx.file !== null && ctx.file.path.startsWith(this.settings.promptsFolder + "/");
+				if (checking) return inFolder;
+				if (inFolder) {
+					new PlaceholderPaletteModal(this.app, this.paletteCatalog(), (entry) => {
+						const cursor = editor.getCursor();
+						applyEntryToEditor(editor, { from: cursor, to: cursor }, entry);
+					}).open();
+				}
 				return inFolder;
 			},
 		});
@@ -246,6 +268,11 @@ export default class PromptboxPlugin extends Plugin {
 		}
 	}
 
+	/** FR-24.1: shared catalog, recomputed on every surface-open, never cached across sessions. */
+	paletteCatalog(): PaletteEntry[] {
+		return buildPaletteCatalog(this.index.getAll(), (p) => this.index.getBody(p));
+	}
+
 	/** Narrow deps for `VariableModal` (ADR-0009), mirrors `modalDeps()`. */
 	variableModalDeps(): VariableModalDeps {
 		return {
@@ -281,6 +308,7 @@ export default class PromptboxPlugin extends Plugin {
 			folder: this.settings.promptsFolder,
 			tagPool: this.buildTagPool(),
 			allPrompts: this.index.getAll(),
+			paletteCatalog: this.paletteCatalog(),
 			persistSettings: () => this.saveSettings(),
 			openFile: (file: TFile) => {
 				void this.app.workspace.getLeaf(false).openFile(file);
