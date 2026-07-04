@@ -103,6 +103,38 @@ describe("runQuery — sort (FR-2.5)", () => {
 	});
 });
 
+describe("runQuery — recently-used-desc (FR-23.5)", () => {
+	it("orders prompts with distinct lastUsed by recency descending", () => {
+		const usageRecency = { "a.md": 100, "b.md": 300, "c.md": 200, "d.md": 400 };
+		const out = runQuery(PROMPTS, getBody, q({ sort: "recently-used-desc", usageRecency }));
+		expect(out.map((x) => x.title)).toEqual(["Delta", "Beta", "Gamma", "Alpha"]);
+	});
+
+	it("sorts a never-used prompt after every used prompt", () => {
+		const usageRecency = { "a.md": 100 };
+		const out = runQuery(PROMPTS, getBody, q({ sort: "recently-used-desc", usageRecency }));
+		expect(out[0]?.title).toBe("Alpha");
+		// b/c/d are never-used (0) -> fall back to updated-desc among themselves.
+		expect(out.slice(1).map((x) => x.title)).toEqual(["Delta", "Beta", "Gamma"]);
+	});
+
+	it("falls back to updated-desc when two never-used prompts tie at zero recency", () => {
+		const out = runQuery(PROMPTS, getBody, q({ sort: "recently-used-desc", usageRecency: {} }));
+		expect(out.map((x) => x.title)).toEqual(["Delta", "Beta", "Alpha", "Gamma"]);
+	});
+
+	it("falls back to updated-desc when two prompts have identical recency", () => {
+		const usageRecency = { "a.md": 500, "b.md": 500 };
+		const out = runQuery(PROMPTS, getBody, q({ sort: "recently-used-desc", usageRecency }));
+		expect(out.map((x) => x.title)).toEqual(["Beta", "Alpha", "Delta", "Gamma"]);
+	});
+
+	it("sorts by the updated-desc fallback without throwing when usageRecency is absent", () => {
+		const out = runQuery(PROMPTS, getBody, q({ sort: "recently-used-desc" }));
+		expect(out.map((x) => x.title)).toEqual(["Delta", "Beta", "Alpha", "Gamma"]);
+	});
+});
+
 describe("runQuery — favoritesFirst (FR-9.5)", () => {
 	const cases: Array<{ sort: SortKey; expected: string[] }> = [
 		{ sort: "updated-desc", expected: ["Alpha", "Gamma", "Delta", "Beta"] },

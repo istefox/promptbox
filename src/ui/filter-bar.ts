@@ -19,6 +19,7 @@ const SORT_LABELS: Record<SortKey, string> = {
 	"created-desc": "Created (newest)",
 	"title-asc": "Title (A-Z)",
 	"quality-desc": "Quality (highest)",
+	"recently-used-desc": "Recently used",
 };
 
 /**

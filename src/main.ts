@@ -1,5 +1,6 @@
-import { Notice, Plugin, TFile, type ObsidianProtocolData } from "obsidian";
+import { debounce, Notice, Plugin, TFile, type ObsidianProtocolData } from "obsidian";
 import { mergeSettings, type PromptboxSettings } from "./settings";
+import { normalizeUsage, pruneUsage, recordUsage, renameUsage, type UsageStore } from "./domain/usage";
 import { readPromptFromCache, stripFrontmatter } from "./storage/frontmatter";
 import { PromptIndex } from "./storage/indexer";
 import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
@@ -21,11 +22,21 @@ import type { VariableModalDeps } from "./ui/variable-modal";
 
 export default class PromptboxPlugin extends Plugin {
 	override settings!: PromptboxSettings;
+	/** FR-23.2: plugin-local telemetry, not a user-facing setting; excluded from the settings tab. */
+	usage: UsageStore = {};
 	index!: PromptIndex;
 	private indexReady!: Promise<void>;
+	/** One write per copy burst (FR-23.1/23.2), reusing the single `saveSettings` save path. */
+	private readonly debouncedSaveUsage = debounce(() => {
+		this.saveSettings().catch((error: unknown) => console.warn("Promptbox: usage save failed", error));
+	}, 500);
 
 	override async onload(): Promise<void> {
-		this.settings = mergeSettings(await this.loadData());
+		const data: unknown = await this.loadData();
+		this.settings = mergeSettings(data);
+		this.usage = normalizeUsage(
+			typeof data === "object" && data !== null ? (data as Record<string, unknown>)["usage"] : undefined,
+		);
 
 		this.index = new PromptIndex(
 			{
@@ -115,7 +126,14 @@ export default class PromptboxPlugin extends Plugin {
 		// Deferred start: no vault I/O before the layout is ready (NFR-2).
 		this.indexReady = new Promise<void>((resolve) => {
 			this.app.workspace.onLayoutReady(() => {
-				void this.index.scan().then(() => resolve());
+				void this.index.scan().then(() => {
+					resolve();
+					const pruned = pruneUsage(this.usage, new Set(this.index.getAll().map((p) => p.path)));
+					if (Object.keys(pruned).length !== Object.keys(this.usage).length) {
+						this.usage = pruned;
+						this.debouncedSaveUsage();
+					}
+				});
 				this.registerEvent(
 					this.app.metadataCache.on("changed", (file) => {
 						if (file instanceof TFile) void this.index.handleCreateOrModify(file.path);
@@ -133,7 +151,11 @@ export default class PromptboxPlugin extends Plugin {
 				);
 				this.registerEvent(
 					this.app.vault.on("rename", (file, oldPath) => {
-						if (file instanceof TFile) void this.index.handleRename(oldPath, file.path);
+						if (file instanceof TFile) {
+							void this.index.handleRename(oldPath, file.path);
+							this.usage = renameUsage(this.usage, oldPath, file.path);
+							this.debouncedSaveUsage();
+						}
 					}),
 				);
 			});
@@ -156,8 +178,17 @@ export default class PromptboxPlugin extends Plugin {
 			return;
 		}
 		const body = this.index.getBody(result.prompt.path);
-		if (raw) copyRaw(result.prompt.title, body);
-		else copyWithVariables(this.app, result.prompt.title, body, result.prompt.path, this.variableModalDeps());
+		const onCopied = (): void => this.recordPromptUsage(result.prompt.path);
+		if (raw) copyRaw(result.prompt.title, body, onCopied);
+		else
+			copyWithVariables(
+				this.app,
+				result.prompt.title,
+				body,
+				result.prompt.path,
+				this.variableModalDeps(),
+				onCopied,
+			);
 	}
 
 	async activateLibraryView(): Promise<void> {
@@ -229,6 +260,21 @@ export default class PromptboxPlugin extends Plugin {
 		await this.saveSettings();
 	}
 
+	/** Flush any pending usage write so a copy in the last debounce window is not lost on unload (FR-23.2). */
+	override onunload(): void {
+		this.debouncedSaveUsage.run();
+	}
+
+	/**
+	 * FR-23.1: records a successful copy at the call site (`prompt.path` in
+	 * scope). Best-effort — the debounced save swallows its own errors, so
+	 * this never blocks or fails the copy that triggered it.
+	 */
+	recordPromptUsage(path: string): void {
+		this.usage = recordUsage(this.usage, path, new Date().toISOString());
+		this.debouncedSaveUsage();
+	}
+
 	private modalDeps() {
 		return {
 			settings: this.settings,
@@ -266,7 +312,7 @@ export default class PromptboxPlugin extends Plugin {
 	}
 
 	async saveSettings(): Promise<void> {
-		await this.saveData(this.settings);
+		await this.saveData({ ...this.settings, usage: this.usage });
 	}
 
 	/** FR-1.2 — wired to the settings tab UI in a later tier. */

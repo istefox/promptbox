@@ -166,3 +166,16 @@ Key architectural decisions:
 - **Reserved namespace:** bare `@` placeholder names are permanently reserved by FR-10.
 
 Detail: `docs/adr/0005-context-variables.md`.
+
+## Decisions from the usage-recency-tracking chain (ADR-0015)
+
+Usage recency: `lastUsed` plus copy `count` per prompt in `data.json` keyed by path, with a "Recently used" library sort. No note writes, no frontmatter.
+
+Key architectural decisions:
+- **Plugin-local state, not frontmatter:** usage lives in `data.json` (ADR-0009 precedent), excluded from JSON export/import like `favorite`; `schema_version` stays 1, plain exports byte-identical.
+- **Pure `src/domain/usage.ts`:** `normalizeUsage`/`recordUsage`/`renameUsage`/`pruneUsage`/`usageRecencyMap`, vitest-covered, clock injected as `nowISO`; tolerant load drops malformed entries.
+- **Record only on a real copy:** the copy entry points gained an optional `onCopied` callback (review-driven refinement of ADR-0015 Alternative 3's signature-stability note); it fires inside the successful clipboard write, never on a cancelled variable or transclusion modal.
+- **Additive query sort:** `"recently-used-desc"` with an injected `LibraryQuery.usageRecency`; never-used prompts sort last, tie-break `updated-desc`.
+- **Lazy prune plus rename migration:** orphan keys drop after the first index scan; a vault rename migrates the key; out-of-Obsidian renames self-heal on the next prune.
+
+Detail: `docs/adr/0015-usage-recency-tracking.md`.
