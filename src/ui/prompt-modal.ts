@@ -261,6 +261,20 @@ export class PromptModal extends Modal {
 			const bodyRow = this.fieldRow("file-text", "Initial body");
 			bodyRow.setClass("promptbox-setting--stacked");
 			bodyRow.controlEl.addClass("promptbox-placeholder-host");
+			const insertBtn = bodyRow.nameEl.createEl("button", {
+				text: "Insert placeholder",
+				cls: "promptbox-field-action",
+			});
+			insertBtn.type = "button";
+			insertBtn.addEventListener("click", () => {
+				const el = this.bodyTextareaEl;
+				if (!el) return;
+				new PlaceholderPaletteModal(this.app, this.deps.paletteCatalog, (entry) => {
+					const at = el.selectionStart ?? el.value.length;
+					applyEntryToTextarea(el, { start: at, end: at }, entry);
+					this.draft.body = el.value;
+				}).open();
+			});
 			bodyRow.addTextArea((t) => {
 				this.bodyTextareaEl = t.inputEl;
 				t.setPlaceholder("Prompt text. Placeholders: {{name}}, {{name|default}}, {{name|a,b,c|hint}}.");
@@ -273,17 +287,6 @@ export class PromptModal extends Modal {
 					this.draft.body = t.inputEl.value;
 				});
 			});
-			bodyRow.addButton((b) =>
-				b.setButtonText("Insert placeholder").onClick(() => {
-					const el = this.bodyTextareaEl;
-					if (!el) return;
-					new PlaceholderPaletteModal(this.app, this.deps.paletteCatalog, (entry) => {
-						const at = el.selectionStart ?? el.value.length;
-						applyEntryToTextarea(el, { start: at, end: at }, entry);
-						this.draft.body = el.value;
-					}).open();
-				}),
-			);
 		} else {
 			this.fieldRow("file-text", "Body")
 				.setDesc("The prompt text lives in the note and is edited with the full Obsidian editor (FR-3.3).")
