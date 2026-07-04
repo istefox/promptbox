@@ -1,10 +1,14 @@
 import { Modal, Notice, setIcon, setTooltip, Setting, type App, type TFile } from "obsidian";
 import { bumpVersion, type PromptDraft } from "../domain/draft";
+import type { PaletteEntry } from "../domain/placeholder-palette";
 import { VISIBILITIES, type Prompt, type Visibility } from "../domain/prompt";
 import { relatedPrompts } from "../domain/related";
 import { suggestValues } from "../domain/suggestions";
 import type { PromptboxSettings } from "../settings";
 import { createPrompt, updatePrompt } from "../storage/prompt-writer";
+import { PlaceholderPaletteModal } from "./placeholder-palette-modal";
+import { PlaceholderTextareaSuggest } from "./placeholder-textarea-suggest";
+import { applyEntryToTextarea } from "./placeholder-ui";
 import { TagSuggest } from "./suggest";
 
 export type PromptModalMode = { kind: "create" } | { kind: "edit"; file: TFile; prompt: Prompt };
@@ -16,6 +20,8 @@ export interface PromptModalDeps {
 	tagPool: string[];
 	/** Full snapshot of the index, used to compute the Related section (ADR-0012). */
 	allPrompts: Prompt[];
+	/** Placeholder insertion catalog (FR-24.5/24.6), recomputed on every modal open. */
+	paletteCatalog: PaletteEntry[];
 	persistSettings: () => Promise<void>;
 	openFile?: (file: TFile) => void;
 }
@@ -63,6 +69,10 @@ export class PromptModal extends Modal {
 	private titleInput: HTMLInputElement | null = null;
 	/** Which taxonomy field is showing its inline "new value" row (backlog 13). */
 	private addingValueFor: "type" | "category" | null = null;
+	/** Captured on render so the "Insert placeholder" button can find the caret (FR-24.5). */
+	private bodyTextareaEl: HTMLTextAreaElement | null = null;
+	/** Inline `{{` dropdown bound to the create-mode body textarea (FR-24.6); destroyed on close. */
+	private bodyTextareaSuggest: PlaceholderTextareaSuggest | null = null;
 
 	constructor(
 		app: App,
@@ -78,6 +88,10 @@ export class PromptModal extends Modal {
 	override onOpen(): void {
 		this.modalEl.addClass("promptbox-modal--wide");
 		this.display();
+	}
+
+	override onClose(): void {
+		this.bodyTextareaSuggest?.destroy();
 	}
 
 	/** Rebuilds the form; all state lives in the draft, so re-rendering is loss-free. */
@@ -246,14 +260,30 @@ export class PromptModal extends Modal {
 		if (this.mode.kind === "create") {
 			const bodyRow = this.fieldRow("file-text", "Initial body");
 			bodyRow.setClass("promptbox-setting--stacked");
+			bodyRow.controlEl.addClass("promptbox-placeholder-host");
 			bodyRow.addTextArea((t) => {
+				this.bodyTextareaEl = t.inputEl;
 				t.setPlaceholder("Prompt text. Placeholders: {{name}}, {{name|default}}, {{name|a,b,c|hint}}.");
 				t.inputEl.rows = 10;
 				t.setValue(this.draft.body).onChange((v) => {
 					this.draft.body = v;
 					scheduleSuggestionsRefresh();
 				});
+				this.bodyTextareaSuggest = new PlaceholderTextareaSuggest(t.inputEl, this.deps.paletteCatalog, () => {
+					this.draft.body = t.inputEl.value;
+				});
 			});
+			bodyRow.addButton((b) =>
+				b.setButtonText("Insert placeholder").onClick(() => {
+					const el = this.bodyTextareaEl;
+					if (!el) return;
+					new PlaceholderPaletteModal(this.app, this.deps.paletteCatalog, (entry) => {
+						const at = el.selectionStart ?? el.value.length;
+						applyEntryToTextarea(el, { start: at, end: at }, entry);
+						this.draft.body = el.value;
+					}).open();
+				}),
+			);
 		} else {
 			this.fieldRow("file-text", "Body")
 				.setDesc("The prompt text lives in the note and is edited with the full Obsidian editor (FR-3.3).")
