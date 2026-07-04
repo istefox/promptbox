@@ -146,7 +146,7 @@ main.js
 *.map
 data.json
 .DS_Store
-CLAUDE.md.bak-2026-07-02
+CLAUDE.md.bak-*
 
 # Node
 node_modules/

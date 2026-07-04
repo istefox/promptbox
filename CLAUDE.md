@@ -37,159 +37,20 @@ npm run lint     # eslint
 - A tier does not start until the previous tier's DoD is met; every implemented requirement references its ID (FR/NFR/US, CFR/CNFR).
 - `main` is branch-protected (PR required); CI (typecheck, lint, build) must be green at the end of every tier.
 
-## Decisions from the launcher-uri chain (ADR-0008)
+## Architecture decisions (full detail in `docs/adr/`)
 
-`obsidian://promptbox` URI action: `path`/`title` lookup, `raw=true`, no-params → quick picker.
+Recurring patterns: pure vitest-covered domain modules in `src/domain/` (no Obsidian import); UI glue in `src/ui/` verified by manual smoke; tolerant parsing (NFR-8); additive `LibraryQuery`/transfer changes (`schema_version` stays 1); minimal frontmatter (omit-on-default). Read the ADR before changing a feature.
 
-Key architectural decisions:
-- **Readiness gate:** the protocol handler registers at the top of `onload`; the lookup work awaits an `indexReady` promise resolved after the first index scan (cold-start URI safety).
-- **Pure lookup:** `resolveLauncherLookup` in `src/domain/launcher.ts` returns a discriminated union (`picker`/`match`/`no-match`), vitest-covered; Notice text stays in `main.ts`.
-- **`path` outranks `title`** when both are supplied; title ties break by newest `updated`, then path ascending.
-- **`raw=true` also applies to the picker fallback.**
-
-Detail: `docs/adr/0008-launcher-uri.md`.
-
-## Decisions from the library-statistics chain (ADR-0014)
-
-Read-only stats modal: totals, taxonomy counts (top-10 tags), quality distribution, 10 oldest, orphan taxonomy values with usage counts.
-
-Key architectural decisions:
-- **Transient Modal, computed once in `onOpen()`:** no live subscription, no lifecycle bookkeeping (out-of-scope: embedded panel).
-- **Single `computeLibraryStats(prompts, taxonomy)` entry point** returning one `LibraryStats` object; one test surface, buckets always sum to total.
-- **Orphan detection reuses `isCustomValue`** from `src/domain/prompt.ts`; never reimplement the check.
-
-Detail: `docs/adr/0014-library-statistics.md`.
-
-## Decisions from the related-prompts chain (ADR-0012)
-
-Read-only "Related" section in the edit modal: top 5 neighbors by shared tags (×3), category (×2), title/use_case token overlap (×1).
-
-Key architectural decisions:
-- **Pure `src/domain/related.ts`:** `similarityScore` + `relatedPrompts` return ranked `Prompt[]`, never scores; vitest-covered.
-- **One deps field:** `PromptModalDeps.allPrompts` snapshot; related list computed once in the constructor (edit mode only), `display()` only reads it.
-- **SPEC.md wins over PROJECT.md wording** (use_case, not body); conflict noted, not silently resolved.
-
-Detail: `docs/adr/0012-related-prompts.md`.
-
-## Decisions from the curated-packs chain (ADR-0013)
-
-Optional `pack: {name, description}` header on the existing export schema; "Export as pack…" from the filtered view; pack banner on import.
-
-Key architectural decisions:
-- **`buildExport`/`runImport` untouched:** `buildPackExport` composes, `runImport` reads only `doc.prompts` — the pack header never reaches notes by construction.
-- **Tolerant parse via `warnings: string[]`** on `ValidationResult` (NFR-8 idiom); bad pack values warn, never block.
-- **Pack-aware naming derived** from `doc.pack?.name` inside the existing naming helper; plain exports byte-identical to before.
-- **`schema_version` stays 1** — the key is additive and optional.
-
-Detail: `docs/adr/0013-curated-packs.md`.
-
-## Decisions from the import-diff-preview chain (ADR-0011)
-
-Overwrite-policy imports show a per-conflict change preview (fields old→new, body +N/−N, "identical") before anything is written.
-
-Key architectural decisions:
-- **`toExportedPrompt` extracted from `buildExport`:** one canonical Prompt+body → transfer-shape mapper; both diff sides use it, so Prompt-only fields are excluded automatically.
-- **Gate one layer above `runImport`:** `buildOverwritePreview` in `transfer-io.ts` called from the import modal; `runImport` untouched, FR-17.4/17.5 true by construction.
-- **All ten overwritable fields diff**, including `created`/`updated` (silent date rewinds are exactly what the preview must surface).
-
-Detail: `docs/adr/0011-import-diff-preview.md`.
-
-## Decisions from the prompt-linter chain (ADR-0010)
-
-On-demand lint: rules L1-L7 (malformed placeholders, conflicting defaults, empty body, missing use_case/category, duplicate titles, parser warnings), report modal + clickable card badge, never auto-fix.
-
-Key architectural decisions:
-- **One shared pass:** `lintLibrary(prompts, getBody)` runs once per command/render; results shared via a path-keyed Map for both badges and report (no O(n²) at NFR-1 scale).
-- **Badge replaced, not stacked:** the existing warning badge repoints to the lint map, same CSS, now clickable → scoped report.
-- **L1/L2 live in `placeholders.ts`** as additive exports next to the parser; L6 groups by trimmed-lowercase title AND `slugify()` key.
-
-Detail: `docs/adr/0010-prompt-linter.md`.
-
-## Decisions from the tag-category-suggestions chain (ADR-0006)
-
-Suggestion chips (tags top-5, category top-3) in the prompt modal, scored locally, never auto-applied.
-
-Key architectural decisions:
-- **One shared scorer:** generic pure `suggestValues(text, candidates, selected, limit)` in `src/domain/suggestions.ts` serves both fields; reuse it for future similarity features.
-- **Scoped re-render:** debounced keystroke refresh touches only the suggestion containers; `display()` full rebuild stays reserved for click/select events (focus-loss guard).
-- **Edit mode scores title + use_case only:** the edit modal has no body by design (FR-3.2); documented gap, not an oversight.
-- **No new deps surface:** candidate pools already exist on `PromptModalDeps`; zero `main.ts` changes.
-
-Detail: `docs/adr/0006-tag-category-suggestions.md`.
-
-## Decisions from the variable-profiles chain (ADR-0009)
-
-Named placeholder value sets in `data.json`, applied from a dropdown in the variable modal; never stored in notes.
-
-Key architectural decisions:
-- **Pure domain module `src/domain/variable-profiles.ts`:** normalize/match/apply/upsert, vitest-covered; tolerant load drops malformed entries.
-- **Narrow deps injection:** `VariableModalDeps` (profiles + saveProfile) built by `variableModalDeps()`, mirroring `PromptModalDeps`.
-- **Modal `display()` rebuild refactor:** state in `this.values`; the Enter-to-submit listener attaches once in `onOpen()`, never inside `display()` (duplicate-listener footgun).
-- **Dropdown lists only profiles with ≥1 matching key.**
-
-Detail: `docs/adr/0009-variable-profiles.md`.
-
-## Decisions from the vault-transclusion chain (ADR-0007)
-
-Wikilink transclusion at copy time: `[[target]]`/`![[target]]` resolve to the linked note's body (frontmatter stripped), depth cap 1, preview modal with sizes and 50k warning, copy-raw bypass.
-
-Key architectural decisions:
-- **Single-pass span assembler:** `assembleBody` splices wikilink and placeholder spans over the pristine original body in one pass; inserted content is never re-scanned for links or placeholders (FR-12.6).
-- **`copyWithVariables` gains `sourcePath`:** required for `getFirstLinkpathDest` disambiguation with duplicate basenames; the only signature change, 2 call sites.
-- **Resolution + preview in `src/ui/transclusion-modal.ts`;** detection stays pure in `src/domain/transclusion.ts` (vitest-covered).
-- **Heading/block refs (`#`, `^`) are unresolvable by design** and share the unresolved-links Notice.
-
-Detail: `docs/adr/0007-vault-transclusion.md`.
-
-## Decisions from the favorites chain (ADR-0004)
-
-Favorites: `favorite` boolean frontmatter field with star toggle, filter chip, favorites-first sort.
-
-Key architectural decisions:
-- **Silent tolerant parse:** `favorite` parses as `value === true` and never warns — the one deliberate exception to warn-on-invalid (FR-9.1).
-- **Orthogonal query flags:** `LibraryQuery` gains `favoritesOnly`/`favoritesFirst` booleans; no new SortKey variants.
-- **Picker ranking:** `rankFavoritesFirst<T>` reorders only at equal fuzzy score, preserving native relevance.
-- **Transfer allowlist unchanged:** `favorite` is intentionally excluded from JSON export/import (schema_version 1); revisit trigger in the ADR.
-- **Omit-on-false:** the frontmatter key is deleted when false, per the minimal-frontmatter convention.
-
-Detail: `docs/adr/0004-favorites.md`.
-
-## Decisions from the context-variables chain (ADR-0005)
-
-Context variables: reserved `{{@selection}}` `{{@title}}` `{{@date}}` `{{@clipboard}}` resolved at copy time.
-
-Key architectural decisions:
-- **Single parse, partition then merge:** one `parsePlaceholders` pass; context and user values merge into one resolution — never substitute-then-reparse (resolved text containing `{{...}}` must not re-parse).
-- **Pure classification, impure resolution:** `isContextVariable` lives in `src/domain/placeholders.ts` (vitest-covered); resolution lives in `src/ui/context-variables.ts`.
-- **Signature-stable entry points:** `copyWithVariables` keeps its exported signature, so both copy entry points gain the feature with zero call-site edits (FR-10.5).
-- **Asymmetric empties:** empty selection = unresolved (Notice); read-but-empty clipboard = resolved (no Notice).
-- **Reserved namespace:** bare `@` placeholder names are permanently reserved by FR-10.
-
-Detail: `docs/adr/0005-context-variables.md`.
-
-## Decisions from the usage-recency-tracking chain (ADR-0015)
-
-Usage recency: `lastUsed` plus copy `count` per prompt in `data.json` keyed by path, with a "Recently used" library sort. No note writes, no frontmatter.
-
-Key architectural decisions:
-- **Plugin-local state, not frontmatter:** usage lives in `data.json` (ADR-0009 precedent), excluded from JSON export/import like `favorite`; `schema_version` stays 1, plain exports byte-identical.
-- **Pure `src/domain/usage.ts`:** `normalizeUsage`/`recordUsage`/`renameUsage`/`pruneUsage`/`usageRecencyMap`, vitest-covered, clock injected as `nowISO`; tolerant load drops malformed entries.
-- **Record only on a real copy:** the copy entry points gained an optional `onCopied` callback (review-driven refinement of ADR-0015 Alternative 3's signature-stability note); it fires inside the successful clipboard write, never on a cancelled variable or transclusion modal.
-- **Additive query sort:** `"recently-used-desc"` with an injected `LibraryQuery.usageRecency`; never-used prompts sort last, tie-break `updated-desc`.
-- **Lazy prune plus rename migration:** orphan keys drop after the first index scan; a vault rename migrates the key; out-of-Obsidian renames self-heal on the next prune.
-
-Detail: `docs/adr/0015-usage-recency-tracking.md`.
-
-## Decisions from the placeholder-insertion-palette chain (ADR-0016)
-
-Placeholder insertion palette: a command, inline `{{` autocomplete, a create-modal button, and a create-modal textarea autocomplete, all offering context variables, reused library placeholder names, and syntax templates.
-
-Key architectural decisions:
-- **One pure core:** `src/domain/placeholder-palette.ts` (`buildPaletteCatalog`, `matchPlaceholderTrigger`, `filterCatalog`, `caretRangeAfterInsert`) is the single vitest-covered source of catalog content, order, trigger detection, filtering, and caret math; the four UI surfaces are thin consumers.
-- **Shared UI, no duplication:** one `SuggestModal` (`PlaceholderPaletteModal`) serves both the command and the create-modal button; two appliers `applyEntryToEditor`/`applyEntryToTextarea` splice on either surface.
-- **Substring filter, not fuzzy:** a plain `SuggestModal` plus the shared `filterCatalog` (case-insensitive `.includes`, never-empty fallback to context vars and templates) so `EditorSuggest` and the hand-rolled dropdown filter identically.
-- **Textarea needs hand-rolled DOM:** `AbstractInputSuggest` accepts only input/div, never a `<textarea>` (FR-24.6); its inline autocomplete is bespoke DOM, the recorded weak-ROI trade-off.
-- **Catalog order:** context variables, then library names by usage frequency, then syntax templates; a template inserts with its `name` segment selected.
-- **Lifecycle:** `EditorSuggest` via `registerEditorSuggest`; textarea listeners removed on modal close; no leak on unload. No frontmatter, no `data.json`, no network.
-
-Detail: `docs/adr/0016-placeholder-insertion-palette.md`.
+- **ADR-0004 favorites** — `favorite` frontmatter field, silent-tolerant, omit-on-false; orthogonal `favoritesOnly`/`favoritesFirst` query flags; excluded from JSON transfer.
+- **ADR-0005 context-variables** — reserved `@` namespace (`{{@selection/@title/@date/@clipboard}}`, permanently reserved by FR-10); single parse, partition then merge; `copyWithVariables` signature stable.
+- **ADR-0006 tag-category-suggestions** — shared pure `suggestValues` scorer in `src/domain/suggestions.ts`; scoped re-render (never full `display()`); chips never auto-applied.
+- **ADR-0007 vault-transclusion** — single-pass `assembleBody` (inserted spans never re-scanned, FR-12.6); `copyWithVariables` gains `sourcePath`; depth cap 1; `#`/`^` refs unresolvable by design.
+- **ADR-0008 launcher-uri** — `obsidian://promptbox` (`path`/`title`/`raw`, no-params → picker); readiness gate on `indexReady`; pure `resolveLauncherLookup`; `path` outranks `title`.
+- **ADR-0009 variable-profiles** — named value sets in `data.json`, never in notes; pure `variable-profiles.ts`; Enter listener attaches once in `onOpen()`, not `display()`.
+- **ADR-0010 prompt-linter** — on-demand rules L1-L7; one shared `lintLibrary` pass (path-keyed Map, no O(n²)); clickable card badge; never auto-fix.
+- **ADR-0011 import-diff-preview** — per-conflict old→new preview above `runImport` (untouched); shared `toExportedPrompt` mapper; all ten overwritable fields diff, including dates.
+- **ADR-0012 related-prompts** — top-5 neighbors (tags ×3, category ×2, title/use_case token ×1); pure `related.ts` returns ranked `Prompt[]`; `PromptModalDeps.allPrompts` snapshot.
+- **ADR-0013 curated-packs** — optional additive `pack` header; `buildPackExport` composes, `runImport` reads only `doc.prompts`; plain exports byte-identical.
+- **ADR-0014 library-statistics** — read-only stats modal computed once in `onOpen()`; single `computeLibraryStats` entry point; orphan detection reuses `isCustomValue`.
+- **ADR-0015 usage-recency-tracking** — `lastUsed`+`count` in `data.json` keyed by path; pure `usage.ts`; record only on a real copy (`onCopied`); `recently-used-desc` sort; lazy prune + rename migration.
+- **ADR-0016 placeholder-insertion-palette** — pure `placeholder-palette.ts` (catalog/trigger/filter/caret); four thin UI surfaces share one `SuggestModal` + `applyEntryToEditor`/`applyEntryToTextarea`; substring filter; textarea needs hand-rolled DOM (`AbstractInputSuggest` rejects `<textarea>`).
