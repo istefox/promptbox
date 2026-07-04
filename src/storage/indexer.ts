@@ -29,7 +29,7 @@ export class PromptIndex {
 		folder: string,
 		private readonly chunkSize = 50,
 		/** Yields control between scan chunks; injectable for tests. */
-		private readonly yielder: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 0)),
+		private readonly yielder: () => Promise<void> = () => new Promise((resolve) => window.setTimeout(resolve, 0)),
 	) {
 		this.folder = normalizeFolder(folder);
 	}

@@ -239,8 +239,8 @@
 	opacity: 0.7;
 }
 
-.promptbox-invalid {
-	border-color: var(--text-error) !important;
+.modal input.promptbox-invalid {
+	border-color: var(--text-error);
 }
 
 .promptbox-library__count-row {
