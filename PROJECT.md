@@ -27,7 +27,7 @@ Obsidian plugin: local-first library of AI prompts with categorization, search, 
 - [x] related prompts: nearest neighbors by shared tags, category, title/body token overlap (§6 N6, effort S/M)  (completed: 2026-07-03; note: scored on title/use_case per SPEC, not body)
 - [x] curated packs export: named pack metadata on top of schema_version 1 JSON, pack-aware import summary (§6 N7, effort S)  (completed: 2026-07-03)
 - [x] library statistics view: counts by taxonomy, quality distribution, stale prompts, taxonomy orphans (§6 N8, effort S)  (completed: 2026-07-03)
-- [ ] usage recency tracking: record last-used date and copy count in data.json keyed by path, "recently used" sort, orphan prune, rename migration; no frontmatter, no note writes (§6 N4, effort S)  (design approved 2026-07-03: SPEC.md + docs/adr/0015-usage-recency-tracking.md + docs/plans/2026-07-03-usage-recency-tracking.md)
+- [x] usage recency tracking: record last-used date and copy count in data.json keyed by path, "recently used" sort, orphan prune, rename migration; no frontmatter, no note writes (§6 N4, effort S)  (design approved 2026-07-03: SPEC.md + docs/adr/0015-usage-recency-tracking.md + docs/plans/2026-07-03-usage-recency-tracking.md)  (completed: 2026-07-04, PR #23)
 
 Parked, not scheduled (do not pick up): template logic (§4 P3a), kanban board view (§4 P3b). Usage recency tracking (§6 N4) is no longer parked: the data.json-vs-frontmatter ruling is settled in ADR-0015 (data.json) and it is scheduled above.
 
