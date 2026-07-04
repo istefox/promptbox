@@ -15,6 +15,12 @@ import { renderFilterBar, type FilterBarHandle, type FilterOptions } from "./fil
 
 export const VIEW_TYPE_LIBRARY = "promptbox-library";
 
+/** Length-capped, whitespace-flattened preview of a prompt body for the card (FR-2). */
+function bodyPreview(body: string): string {
+	const flat = body.replace(/\s+/g, " ").trim();
+	return flat.length > 400 ? flat.slice(0, 400) : flat;
+}
+
 /** Full-tab, read-only library view (FR-2, ADR-0002). */
 export class PromptboxLibraryView extends ItemView {
 	private readonly query: LibraryQuery = emptyQuery();
@@ -160,6 +166,11 @@ export class PromptboxLibraryView extends ItemView {
 			void this.openAsNote(prompt.path);
 		});
 		this.addItemAction(actions, "trash-2", "Delete", () => this.confirmDelete(prompt));
+
+		const preview = bodyPreview(this.plugin.index.getBody(prompt.path));
+		if (preview !== "") {
+			item.createDiv({ text: preview, cls: "promptbox-item__body" });
+		}
 
 		const meta = item.createDiv({ cls: "promptbox-item__meta" });
 		meta.createSpan({ text: prompt.type, cls: "promptbox-pill promptbox-pill--type" });

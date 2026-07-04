@@ -143,6 +143,18 @@
 	font-size: var(--font-ui-smaller);
 }
 
+.promptbox-item__body {
+	margin-top: var(--size-2-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
 .promptbox-item__usecase {
 	margin-top: var(--size-2-2);
 	color: var(--text-muted);
