@@ -340,6 +340,18 @@
 	align-items: stretch;
 }
 
+.promptbox-setting--stacked .setting-item-name {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+.promptbox-field-action {
+	margin-left: auto;
+	font-size: var(--font-ui-smaller);
+	padding: var(--size-2-1) var(--size-2-3);
+}
+
 .promptbox-setting--stacked .setting-item-control {
 	width: 100%;
 	margin-top: var(--size-2-2);
