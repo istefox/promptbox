@@ -15,6 +15,7 @@ export interface FilterBarHandle {
 }
 
 const SORT_LABELS: Record<SortKey, string> = {
+	"relevance-desc": "Relevance (best match)",
 	"updated-desc": "Updated (newest)",
 	"created-desc": "Created (newest)",
 	"title-asc": "Title (A-Z)",
@@ -44,21 +45,40 @@ export function renderFilterBar(
 		placeholder: "Search title, use case, body...",
 		cls: "promptbox-filters__search",
 	});
-	let debounce: number | undefined;
-	search.addEventListener("input", () => {
-		window.clearTimeout(debounce);
-		debounce = window.setTimeout(() => {
-			query.text = search.value;
-			onChange();
-		}, 150);
-	});
 
 	const sortSelect = row1.createEl("select", { cls: "dropdown" });
 	for (const [value, label] of Object.entries(SORT_LABELS)) {
 		sortSelect.createEl("option", { value, text: label });
 	}
+
+	// While a query is active the list auto-sorts by relevance; clearing it restores the
+	// sort in effect before the search (or a sort the user picked meanwhile).
+	let sortBeforeSearch: SortKey | null = null;
+
+	let debounce: number | undefined;
+	search.addEventListener("input", () => {
+		window.clearTimeout(debounce);
+		debounce = window.setTimeout(() => {
+			const hadText = query.text.trim() !== "";
+			query.text = search.value;
+			const hasText = query.text.trim() !== "";
+			if (hasText && !hadText) {
+				sortBeforeSearch = query.sort;
+				query.sort = "relevance-desc";
+				sortSelect.value = query.sort;
+			} else if (!hasText && hadText) {
+				query.sort = sortBeforeSearch ?? "updated-desc";
+				sortSelect.value = query.sort;
+				sortBeforeSearch = null;
+			}
+			onChange();
+		}, 150);
+	});
+
 	sortSelect.addEventListener("change", () => {
 		query.sort = sortSelect.value as SortKey;
+		// Honor a manual choice so it also survives clearing the search box.
+		sortBeforeSearch = query.sort;
 		onChange();
 	});
 

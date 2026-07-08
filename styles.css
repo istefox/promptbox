@@ -100,6 +100,11 @@
 	overflow-wrap: anywhere;
 }
 
+.promptbox-library__match {
+	color: var(--text-accent);
+	font-weight: var(--font-bold);
+}
+
 .promptbox-item__warning {
 	color: var(--text-warning);
 	display: inline-flex;
