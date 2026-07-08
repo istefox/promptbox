@@ -82,8 +82,8 @@ Priorities per MoSCoW: MUST (MVP gate), SHOULD (include if no schedule risk), CO
 - FR-2.1 Dedicated full-tab view (workspace leaf), opened via ribbon icon and command.
 - FR-2.2 Filter controls for the categorical frontmatter fields: type, category, tags (multi-select), quality (minimum threshold), visibility. Filters combine with AND.
 - FR-2.3 `created`/`updated` are covered by sorting (MUST) and by a date-range filter (SHOULD). `version` is covered by text search (COULD as dedicated filter).
-- FR-2.4 Full-text search across title, use_case, and note body; case-insensitive; incremental while typing; combined with active filters.
-- FR-2.5 Sort by updated (default, descending), created, title, quality. Visible result count. One-click "clear all filters".
+- FR-2.4 Fuzzy search across title, use_case, and note body; incremental while typing; combined with active filters. Matching is subsequence-based (characters in order, not necessarily contiguous) and token-AND: the query splits on whitespace and every token must match at least one field, so word order does not matter (`prompt test` finds "test prompt"). Case-insensitive and diacritic-insensitive. Each match carries a relevance score, weighted title > use_case > body (ADR-0017).
+- FR-2.5 Sort by relevance (best match), updated (default, descending), created, title, quality. While a search query is active the list auto-switches to relevance and reverts when the query is cleared; a manually chosen sort is honored. Matched characters in the title are highlighted. Visible result count. One-click "clear all filters".
 - FR-2.6 Each list item shows title, type, category, tags, quality, updated date, use_case. Item actions: copy with variables, copy raw, edit metadata, open as note, delete (with confirmation; deletion uses the Obsidian trash mechanism and honors the user's trash preference).
 - FR-2.7 The view works on desktop and mobile layouts (single column, touch-friendly targets).
 

@@ -1,6 +1,13 @@
 import type { Prompt, Visibility } from "./prompt";
+import { scoreLibraryMatch } from "./search";
 
-export type SortKey = "updated-desc" | "created-desc" | "title-asc" | "quality-desc" | "recently-used-desc";
+export type SortKey =
+	| "relevance-desc"
+	| "updated-desc"
+	| "created-desc"
+	| "title-asc"
+	| "quality-desc"
+	| "recently-used-desc";
 
 /** Inclusive YYYY-MM-DD bounds; ISO strings compare lexicographically. */
 export interface DateRange {
@@ -18,7 +25,7 @@ export interface LibraryQuery {
 	visibility: Visibility | null;
 	/** SHOULD, FR-2.3: range on `updated`. */
 	updatedRange: DateRange | null;
-	/** Case-insensitive substring over title, use_case, and body (FR-2.4). */
+	/** Fuzzy subsequence, token-AND, diacritic-insensitive over title, use_case, and body (FR-2.4, ADR-0017). */
 	text: string;
 	sort: SortKey;
 	/** FR-9.4: keep only favorite prompts; combines with the other filters via AND. */
@@ -63,7 +70,8 @@ export function runQuery(
 	getBody: (path: string) => string,
 	q: LibraryQuery,
 ): Prompt[] {
-	const needle = q.text.trim().toLowerCase();
+	const hasText = q.text.trim() !== "";
+	const scoreByPath = new Map<string, number>();
 	const results = prompts.filter((p) => {
 		if (q.types.length > 0 && !q.types.includes(p.type)) return false;
 		if (q.categories.length > 0 && !q.categories.includes(p.category)) return false;
@@ -75,18 +83,28 @@ export function runQuery(
 			if (q.updatedRange.from && p.updated < q.updatedRange.from) return false;
 			if (q.updatedRange.to && p.updated > q.updatedRange.to) return false;
 		}
-		if (needle !== "") {
-			const haystack = `${p.title}\n${p.useCase}\n${getBody(p.path)}`.toLowerCase();
-			if (!haystack.includes(needle)) return false;
+		if (hasText) {
+			const hit = scoreLibraryMatch(q.text, { title: p.title, useCase: p.useCase, body: getBody(p.path) });
+			if (!hit) return false;
+			scoreByPath.set(p.path, hit.score);
 		}
 		return true;
 	});
-	return results.sort(comparator(q));
+	return results.sort(comparator(q, scoreByPath));
 }
 
-function baseComparator(sort: SortKey, usageRecency?: Record<string, number>): (a: Prompt, b: Prompt) => number {
+function baseComparator(
+	sort: SortKey,
+	usageRecency?: Record<string, number>,
+	scoreByPath?: Map<string, number>,
+): (a: Prompt, b: Prompt) => number {
 	const byTitle = (a: Prompt, b: Prompt) => a.title.localeCompare(b.title);
 	switch (sort) {
+		case "relevance-desc": {
+			const scores = scoreByPath ?? new Map<string, number>();
+			const fallback = baseComparator("updated-desc");
+			return (a, b) => (scores.get(b.path) ?? 0) - (scores.get(a.path) ?? 0) || fallback(a, b);
+		}
 		case "updated-desc":
 			return (a, b) => b.updated.localeCompare(a.updated) || byTitle(a, b);
 		case "created-desc":
@@ -103,8 +121,8 @@ function baseComparator(sort: SortKey, usageRecency?: Record<string, number>): (
 	}
 }
 
-function comparator(q: LibraryQuery): (a: Prompt, b: Prompt) => number {
-	const base = baseComparator(q.sort, q.usageRecency);
+function comparator(q: LibraryQuery, scoreByPath?: Map<string, number>): (a: Prompt, b: Prompt) => number {
+	const base = baseComparator(q.sort, q.usageRecency, scoreByPath);
 	if (!q.favoritesFirst) return base;
 	return (a, b) => (Number(b.favorite) - Number(a.favorite)) || base(a, b);
 }

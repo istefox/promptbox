@@ -90,6 +90,32 @@ describe("runQuery — text search (FR-2.4)", () => {
 	});
 });
 
+describe("runQuery — fuzzy search & relevance (FR-2.4, ADR-0017)", () => {
+	const p1 = p("t.md", { title: "test prompt", visibility: "private", updated: "2026-01-01" });
+	const tmpl = p("tp.md", { title: "Template Builder", visibility: "private", updated: "2026-01-01" });
+	const noBody = () => "";
+
+	it("matches a multi-word query regardless of word order (issue #30)", () => {
+		expect(runQuery([p1], noBody, q({ text: "prompt test" })).map((x) => x.title)).toEqual(["test prompt"]);
+	});
+
+	it("matches a non-contiguous subsequence", () => {
+		expect(runQuery([tmpl], noBody, q({ text: "tmpl" }))).toHaveLength(1);
+	});
+
+	it("excludes a prompt when any query token matches no field (token AND)", () => {
+		expect(runQuery([p1], noBody, q({ text: "prompt zzzz" }))).toHaveLength(0);
+	});
+
+	it("ranks title matches above body-only matches under relevance-desc", () => {
+		const inBody = p("body.md", { title: "Notes", visibility: "private", updated: "2026-06-01" });
+		const inTitle = p("title.md", { title: "Release checklist", visibility: "private", updated: "2026-05-01" });
+		const bodies = (path: string) => (path === "body.md" ? "a release checklist section" : "");
+		const out = runQuery([inBody, inTitle], bodies, q({ text: "checklist", sort: "relevance-desc" }));
+		expect(out.map((x) => x.title)).toEqual(["Release checklist", "Notes"]);
+	});
+});
+
 describe("runQuery — sort (FR-2.5)", () => {
 	it("sorts by created desc, title asc, quality desc", () => {
 		expect(runQuery(PROMPTS, getBody, q({ sort: "title-asc" })).map((x) => x.title)).toEqual([

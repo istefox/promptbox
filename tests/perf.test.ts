@@ -57,4 +57,16 @@ describe("NFR-1 — query performance on the 1,000-prompt fixture", () => {
 		console.log(`NFR-1 worst keystroke over 1000 prompts: ${worst.toFixed(1)} ms`);
 		expect(worst).toBeLessThan(100);
 	});
+
+	it("fuzzy multi-token search with relevance sort stays under 100 ms (ADR-0017)", () => {
+		const queries = ["code review", "prompt writing", "tmpl", "revw code"];
+		let worst = 0;
+		for (const text of queries) {
+			const t0 = performance.now();
+			runQuery(prompts, getBody, { ...emptyQuery(), text, sort: "relevance-desc" });
+			worst = Math.max(worst, performance.now() - t0);
+		}
+		console.log(`ADR-0017 worst fuzzy+relevance keystroke over 1000 prompts: ${worst.toFixed(1)} ms`);
+		expect(worst).toBeLessThan(100);
+	});
 });

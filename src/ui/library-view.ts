@@ -1,6 +1,7 @@
 import { ItemView, Notice, setIcon, setTooltip, type WorkspaceLeaf } from "obsidian";
 import { lintLibrary, type PromptLintResult } from "../domain/lint";
 import { emptyQuery, runQuery, type LibraryQuery } from "../domain/query";
+import { titleMatchRanges } from "../domain/search";
 import { usageRecencyMap } from "../domain/usage";
 import type { Prompt } from "../domain/prompt";
 import type PromptboxPlugin from "../main";
@@ -131,7 +132,7 @@ export class PromptboxLibraryView extends ItemView {
 
 		const header = item.createDiv({ cls: "promptbox-item__header" });
 		this.addFavoriteToggle(header, prompt);
-		header.createSpan({ text: prompt.title, cls: "promptbox-item__title" });
+		this.renderTitle(header, prompt.title);
 		const lintResult = lintByPath.get(prompt.path);
 		const warningFindings = lintResult?.findings.filter((f) => f.severity === "warning") ?? [];
 		if (warningFindings.length > 0) {
@@ -190,6 +191,23 @@ export class PromptboxLibraryView extends ItemView {
 			item.createDiv({ text: prompt.useCase, cls: "promptbox-item__usecase" });
 		}
 
+	}
+
+	/** Renders the title with matched characters emphasized while a search query is active (FR-2.4). */
+	private renderTitle(header: HTMLElement, title: string): void {
+		const titleEl = header.createSpan({ cls: "promptbox-item__title" });
+		const ranges = titleMatchRanges(this.query.text, title);
+		if (ranges.length === 0) {
+			titleEl.setText(title);
+			return;
+		}
+		let cursor = 0;
+		for (const [start, end] of ranges) {
+			if (start > cursor) titleEl.appendText(title.slice(cursor, start));
+			titleEl.createSpan({ text: title.slice(start, end), cls: "promptbox-library__match" });
+			cursor = end;
+		}
+		if (cursor < title.length) titleEl.appendText(title.slice(cursor));
 	}
 
 	private addFavoriteToggle(header: HTMLElement, prompt: Prompt): void {
