@@ -9,6 +9,8 @@
  * domain scorers (`related.ts`, `suggestions.ts`).
  */
 
+import { fold } from "./text";
+
 const TITLE_WEIGHT = 3;
 const USE_CASE_WEIGHT = 2;
 const BODY_WEIGHT = 1;
@@ -26,11 +28,6 @@ export interface SearchHit {
 	titleRanges: Array<[number, number]>;
 }
 
-/** Whole-string diacritic fold: NFD, strip combining marks, lower-case (positions not preserved). */
-function foldFast(text: string): string {
-	return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
 /**
  * Length-preserving diacritic fold: each source UTF-16 unit maps to exactly one folded
  * char, so an index in the result maps 1:1 back to the original string. Used only for the
@@ -39,14 +36,15 @@ function foldFast(text: string): string {
 function foldTitle(text: string): string {
 	let out = "";
 	for (let i = 0; i < text.length; i++) {
-		const folded = text.charAt(i).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+		const folded = fold(text.charAt(i));
 		out += folded.charAt(0) || " ";
 	}
 	return out;
 }
 
+/** Query tokens split on whitespace, not on `[^a-z0-9]+`, so `c++` stays one token. */
 function tokenize(queryText: string): string[] {
-	return foldFast(queryText)
+	return fold(queryText)
 		.split(/\s+/)
 		.filter((t) => t !== "");
 }
@@ -123,8 +121,8 @@ export function scoreLibraryMatch(queryText: string, fields: SearchFields): Sear
 	if (tokens.length === 0) return { score: 0, titleRanges: [] };
 
 	const foldedTitle = foldTitle(fields.title);
-	const foldedUseCase = foldFast(fields.useCase);
-	const foldedBody = foldFast(fields.body);
+	const foldedUseCase = fold(fields.useCase);
+	const foldedBody = fold(fields.body);
 
 	let total = 0;
 	const titlePositions = new Set<number>();

@@ -1,18 +1,10 @@
+import { tokenizeWords } from "./text";
+
 /** Draft text scored against candidate values for tag/category suggestions (FR-11.1). */
 export interface SuggestionDraftText {
 	title: string;
 	useCase: string;
 	body: string;
-}
-
-/** Tokenizes with the same normalize-NFD, strip-diacritics, lowercase, split approach as `slugify`. */
-function tokenize(text: string): string[] {
-	return text
-		.normalize("NFD")
-		.replace(/[\u0300-\u036f]/g, "")
-		.toLowerCase()
-		.split(/[^a-z0-9]+/)
-		.filter((t) => t !== "");
 }
 
 function frequencyMap(tokens: string[]): Map<string, number> {
@@ -31,7 +23,7 @@ export function suggestValues(
 	selected: string[],
 	limit: number,
 ): string[] {
-	const draftFreq = frequencyMap(tokenize(`${draftText.title} ${draftText.useCase} ${draftText.body}`));
+	const draftFreq = frequencyMap(tokenizeWords(`${draftText.title} ${draftText.useCase} ${draftText.body}`));
 
 	const seen = new Set<string>();
 	const scored: { value: string; score: number }[] = [];
@@ -39,7 +31,7 @@ export function suggestValues(
 		if (seen.has(candidate) || selected.includes(candidate)) continue;
 		seen.add(candidate);
 
-		const tokens = new Set(tokenize(candidate));
+		const tokens = new Set(tokenizeWords(candidate));
 		if (tokens.size === 0) continue;
 
 		let score = 0;
