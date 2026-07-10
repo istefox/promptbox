@@ -1,12 +1,8 @@
+import { tokenizeWords } from "./text";
+
 /** Derives a file-name slug from a prompt title (FR-3.1). */
 export function slugify(title: string): string {
-	const slug = title
-		.normalize("NFD")
-		.replace(/[\u0300-\u036f]/g, "")
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-	return slug === "" ? "untitled" : slug;
+	return tokenizeWords(title).join("-") || "untitled";
 }
 
 /** Resolves name collisions with a numeric suffix: slug, slug-1, slug-2, ... (FR-3.1). */

@@ -1,4 +1,5 @@
 import type { Prompt } from "./prompt";
+import { tokenizeWords } from "./text";
 
 const TAG_WEIGHT = 3;
 const CATEGORY_WEIGHT = 2;
@@ -6,12 +7,7 @@ const TOKEN_WEIGHT = 1;
 
 /** Normalizes title+use_case into a token set: NFD, diacritics stripped, lower-cased (ADR-0012). */
 function tokenize(prompt: Prompt): Set<string> {
-	const source = `${prompt.title} ${prompt.useCase}`
-		.normalize("NFD")
-		.replace(/[̀-ͯ]/g, "")
-		.toLowerCase();
-	const tokens = source.split(/[^a-z0-9]+/).filter((t) => t !== "");
-	return new Set(tokens);
+	return new Set(tokenizeWords(`${prompt.title} ${prompt.useCase}`));
 }
 
 function sharedCount<T>(a: Set<T>, b: Set<T>): number {
