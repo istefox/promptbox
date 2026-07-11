@@ -1,76 +1,148 @@
-# SPEC — Placeholder insertion palette (Phase 1.5+)
+# SPEC: Click actions on prompt cards
 
-**Topic slug:** placeholder-insertion-palette
+**Topic slug:** click-actions
 
-| | |
-|---|---|
-| Source | User request (2026-07-04) |
-| Depends on | Tier 3 create/edit, Tier 4 reuse engine (met); ADR-0001, ADR-0002 binding; `src/domain/placeholders.ts` |
-| Effort | L |
+## Objective
 
-## 1. Purpose
+Add a right-click (desktop) / long-press (mobile) context menu to each prompt card in the
+library view (`ItemView`, `src/ui/library-view.ts`), carrying the card's existing actions as
+text-label menu items. Resolves GitHub issue #33.
 
-Prompt placeholders use a syntax that is not discoverable while authoring: `{{name}}`, `{{name|default}}`, `{{name|default|hint}}`, choice `{{name|a,b,c|hint}}`, and the reserved context variables `{{@selection}}` `{{@title}}` `{{@date}}` `{{@clipboard}}`. Today a user must remember all of it, and the linter (FR-21) only flags malformed placeholders after the fact. This feature adds an insertion helper that offers the valid constructs, reuses placeholder names already present in the library, and inserts the chosen construct at the cursor. It never invents new syntax and adds no data.
+## Origin and scope boundary
 
-## 2. Requirements
+Reported by @craziedde in istefox/promptbox#33. Two follow-ups clarified the ask into a larger
+set of ideas (configurable click bindings, a future multi-select mode with bulk actions); the
+maintainer's public reply (issue comment, 2026-07-11) explicitly scoped this pass to the
+context menu only, deferring the rest to a future issue. This SPEC implements exactly that
+scoped commitment. It does not renegotiate it.
 
-### FR-24 Placeholder insertion palette
+**Explicitly out of scope for this feature:**
+- User-configurable/remappable click bindings.
+- A "Select" / multi-select mode with bulk actions (delete, tag, etc.).
+- Any change to `src/ui/quick-picker.ts` (FuzzySuggestModal). That surface already has its own
+  Ctrl/Cmd+click convention ("copy raw") and is not part of this SPEC.
 
-- FR-24.1 **Shared catalog.** A pure module builds one ordered, deduplicated list of catalog entries from the current index. Each entry knows its display label, its kind (context / library / template), the text to insert, and where the caret lands after insertion (a selected span within the inserted text, or a trailing cursor). Content:
-  - **Context variables:** the four reserved names, inserted as `{{@selection}}` / `{{@title}}` / `{{@date}}` / `{{@clipboard}}`, caret after `}}`.
-  - **Library names:** every placeholder name already used across prompt bodies, harvested with the existing `parsePlaceholders` over the index; each inserted as `{{name}}`, caret after `}}`. Context-variable names are excluded from this section (they are their own section). Deduplicated by name.
-  - **Syntax templates:** two skeletons, `{{name|default|hint}}` and `{{name|a,b,c|hint}}`, inserted ready to fill with the `name` segment selected.
-- FR-24.2 **Order.** Context variables first, then library names sorted by usage frequency descending (tie-break name ascending), then the syntax templates.
-- FR-24.3 **Command + picker.** An Obsidian command `Insert placeholder`, available only when the active note is inside the prompts folder (`checkCallback`, mirroring `Edit prompt metadata`), opens a `SuggestModal` (substring-filterable, shared filter) over the catalog. Selecting an entry inserts its construct at the editor cursor via the editor API.
-- FR-24.4 **Inline autocomplete (native editor).** An `EditorSuggest` fires when the text before the cursor contains an open `{{` with an optional partial name and no closing `}}` yet. It offers the same catalog, filtered by the partial. Selecting an entry replaces the whole trigger range (the `{{` plus the typed partial) with the full construct, including the closing `}}`; it does not rely on the theme's bracket auto-pairing. Registered via `registerEditorSuggest` so it is cleaned up on unload.
-- FR-24.5 **Create-modal button.** The create modal's `Initial body` field gains an `Insert placeholder` button that opens the same `SuggestModal`; the selected construct is spliced into the `<textarea>` at its caret (`selectionStart`), and the caret/selection is set per the entry (templates select the `name` segment).
-- FR-24.6 **Inline autocomplete (create-modal textarea).** Typing `{{` in the `Initial body` textarea shows a hand-rolled dropdown over the same catalog (a plain `<textarea>` cannot host `EditorSuggest`), with the same replace-the-trigger-range behavior as FR-24.4. All listeners attached in the modal are removed on modal close.
-- FR-24.7 **Template caret.** Inserting a syntax template leaves the `name` segment selected so the user types over it immediately; context variables and library names place the caret after `}}` (nothing to fill).
-- FR-24.8 **No new data, no network.** The feature writes only into the editor/textarea the user is already editing. No frontmatter, no `data.json`, no settings field, no network. The catalog is derived from the disposable index and recomputed on open.
+## Current state (confirmed during interview)
 
-## 3. Architecture
+- `library-view.ts` renders one card per prompt with a header row of 6 icon buttons:
+  Favorite toggle (star), Copy with variables, Copy raw, Edit metadata, Open as note, Delete.
+- The card container itself (body, preview text, meta pills, title) has **no existing click
+  handler.** Only the icon buttons are interactive today, and there is nothing to preserve or
+  conflict with on the card body.
+- All 6 actions already have working handlers (`addItemAction`, `addFavoriteToggle`,
+  `confirmDelete`) that this feature reuses; it does not introduce new business logic for any
+  action, only a second entry point to trigger them.
 
-- Pure core in `src/domain/` (no Obsidian imports, vitest-covered): the catalog builder over `Prompt[]` + a `getBody` accessor, plus the `{{`-trigger matcher (given the text before the cursor, return the trigger range and the partial query) and the fuzzy/prefix filter. Returns raw entries with `insertText` and caret metadata (selection span offsets or trailing-caret flag). One entry point, one test surface.
-- Four thin UI integrations consuming the core: the command + `SuggestModal`, the `EditorSuggest`, the create-modal button, and the textarea autocomplete. Each maps a chosen entry to an insertion on its surface (editor `replaceRange`/`replaceSelection`, or textarea value splice) and applies the caret metadata.
-- Mobile: the command and `EditorSuggest` work on the mobile editor; the textarea autocomplete uses touch-safe events.
+## Scope
 
-## 4. UI flows
+1. **New interaction:** right-click (desktop `contextmenu` event) or long-press (mobile touch,
+   500ms, cancelled if the touch moves more than 10px) anywhere on a prompt card opens an
+   Obsidian `Menu` populated with all 6 actions as text-label items, using Obsidian's native
+   `Menu`/`MenuItem` API (`showAtMouseEvent` for desktop, `showAtPosition` for the long-press
+   touch point on mobile).
+2. **Icon buttons are unchanged.** All 6 remain exactly as they are today, at the same
+   position, with the same click behavior, aria-labels, and tooltips. The context menu is a
+   fully additive second path to the same actions, so there is zero regression risk on existing behavior.
+3. **Menu triggers everywhere on the card**, including when right-clicking directly over an
+   icon button (no special-casing of `event.target`; the listener is on the card root and
+   always shows the same menu regardless of what's under the pointer).
+4. **Menu content and order** (frequency-ordered, one separator before the destructive item):
+   1. Copy with variables
+   2. Copy raw
+   3. Edit metadata
+   4. Open as note
+   5. Add to favorites / Remove from favorites (label reflects current `prompt.favorite` state)
+   6. (separator)
+   7. Delete (styled via `MenuItem.setWarning(true)`)
+5. **Single click on the card is unaffected.** There is no existing handler to change, and
+   this feature does not add one; single-click behavior stays exactly as-is.
 
-1. **Command:** active prompt note → `Cmd+P` → `Insert placeholder` → SuggestModal → pick → construct inserted at cursor.
-2. **Inline (editor):** type `{{pro` → suggestions filter to `product`, `@…`, templates → pick → `{{pro` replaced by `{{product}}`.
-3. **Modal button:** new prompt → click `Insert placeholder` above the body textarea → SuggestModal → pick → inserted at textarea caret.
-4. **Inline (modal textarea):** type `{{` in the body textarea → dropdown → pick → inserted, trigger range replaced.
+## Architecture (ADR-0001 pattern: pure domain + thin UI glue)
 
-## 5. Edge cases
+- **`src/domain/card-menu.ts`** (new, no Obsidian import, vitest-covered): pure function
+  `buildCardMenuEntries(prompt: Prompt): CardMenuEntry[]` returning the ordered, labeled entry
+  list above as data, typed as `{ label: string; actionKey: CardMenuActionKey; warning: boolean;
+  separatorBefore: boolean }[]`. Contains all logic that can vary (favorite label toggling,
+  ordering, which entries apply) so it is independently testable without a DOM or an Obsidian
+  `App` instance. Mirrors the existing pattern in `src/domain/related.ts` and
+  `src/domain/placeholder-palette.ts`.
+- **`src/ui/library-view.ts`** (modified): a new private method (e.g. `attachCardMenu`) wires
+  one `contextmenu` listener (desktop) and one long-press touch listener (mobile: `touchstart`
+  starts a 500ms timer, `touchmove` beyond 10px or `touchend`/`touchcancel` before the timer
+  fires cancels it) onto the card root element created in the existing render path. On trigger:
+  call `buildCardMenuEntries(prompt)`, map each `CardMenuEntry` to `menu.addItem(...)`, and
+  dispatch `actionKey` to the existing handler methods already used by the icon buttons (no
+  duplicated business logic; the menu calls the same functions the icons call).
+- No changes to `src/domain/prompt.ts`, frontmatter schema, or any storage/index code. This is
+  a pure UI/interaction feature.
 
-- Empty library or no existing placeholder names: the library-names section is omitted; context variables and templates are always present, so the palette is never empty.
-- Partial that matches nothing: the suggestion popup shows the always-available context variables and templates (never an empty list that blocks typing).
-- A `{{` already followed by a `}}` on the same line: the trigger matcher must not span across an existing `}}` (only an open, unclosed `{{`).
-- Duplicate placeholder names across prompts: deduplicated to one entry; frequency is the total count of occurrences.
-- Inserting inside an existing malformed construct is the user's responsibility; the linter (FR-21) still flags anything malformed afterward.
+## Data model
 
-## 6. Acceptance criteria
+No new persisted fields. `CardMenuEntry` is an in-memory UI type only (not frontmatter, not
+`data.json`), defined in `src/domain/card-menu.ts`.
 
-- AC-1 With a library containing `{{product}}` and `{{tone}}`, all four surfaces offer `product` and `tone` (by frequency), the four context variables, and the two templates, in the FR-24.2 order.
-- AC-2 Selecting a template inserts `{{name|default|hint}}` (or the choice skeleton) with `name` selected; typing immediately replaces `name`.
-- AC-3 Inline: typing `{{@da` in the editor and selecting `@date` yields exactly `{{@date}}` with the `{{@da` replaced, no leftover braces, caret after `}}`.
-- AC-4 The `Insert placeholder` command does not appear/act when the active note is outside the prompts folder.
-- AC-5 An empty library still shows context variables and templates in every surface; no crash, no empty-list dead end.
-- AC-6 No note frontmatter, `data.json`, or settings change results from using any surface; a plain export is unaffected.
+```
+type CardMenuActionKey =
+  | "copy-with-variables" | "copy-raw" | "edit-metadata"
+  | "open-as-note" | "toggle-favorite" | "delete";
 
-## 7. Constraints
+interface CardMenuEntry {
+  label: string;
+  actionKey: CardMenuActionKey;
+  warning: boolean;
+  separatorBefore: boolean;
+}
+```
 
-- Native Obsidian components and vanilla TypeScript only (ADR-0002): `SuggestModal`, `EditorSuggest`, `Setting`/button, plain DOM for the textarea dropdown. Notes are the source of truth; the index is disposable (ADR-0001). No network.
-- Lifecycle: `EditorSuggest` via `registerEditorSuggest`; every modal/textarea listener removed on modal close; no leak on unload.
-- The pure core is the only vitest-covered part; the four UI integrations are verified by manual smoke (project convention).
+## UI flow
 
-## 8. Out of scope
+1. User right-clicks (desktop) or long-presses ≥500ms without moving >10px (mobile) anywhere
+   on a prompt card.
+2. Native OS/browser context menu is suppressed (`event.preventDefault()`); Obsidian `Menu` is
+   shown at the pointer/touch position.
+3. Menu shows the 6 entries in the order defined above, Delete visually separated and styled
+   as a warning.
+4. Selecting an entry runs the same handler the equivalent icon button runs today (including
+   the existing delete confirmation modal, unchanged).
+5. Menu dismisses on selection, outside click, or Escape (native `Menu` behavior, no custom
+   handling needed).
 
-- New placeholder syntax (the catalog only offers existing constructs).
-- Rendering or previewing resolved values in the palette.
-- Managing/saving custom placeholder presets (that is variable profiles, ADR-0009).
-- A settings surface for the palette.
+## Edge cases
 
-## 9. Known trade-off
+- **Right-click directly on an icon button:** menu still opens (per interview decision, no
+  target-checking). The icon's own click handler is unaffected since `contextmenu` and `click`
+  are different events.
+- **Long-press that turns into a scroll gesture:** cancelled once touch movement exceeds 10px;
+  the list scrolls normally, no menu appears.
+- **Long-press released before 500ms (a tap):** timer is cleared on `touchend`; no menu, no
+  interference with any future tap behavior.
+- **Favorite label:** always reflects live `prompt.favorite` state at menu-open time (same
+  data source the star icon already uses), so it can never show a stale toggle direction.
+- **Prompt with corruptible/invalid frontmatter (NFR-8):** `buildCardMenuEntries` operates on
+  already-tolerantly-parsed `Prompt` data (same object the icons use), so no new failure mode
+  is introduced.
 
-The inline autocomplete inside the create-modal `<textarea>` (FR-24.6) has the weakest cost/benefit of the four surfaces: it needs a hand-rolled dropdown because `EditorSuggest` only works in the CodeMirror editor, for a transient authoring field whose real home is the note. It is included at explicit user request; the ADR records this so a future simplification has the rationale.
+## Success criteria / Definition of Done
+
+- `src/domain/card-menu.ts` exists, has no Obsidian import, and has vitest coverage for:
+  entry ordering, the favorite label toggling both directions, and the warning/separator flags
+  on Delete.
+- Right-click on a card in a running dev-build desktop Obsidian instance opens the menu with
+  all 6 correctly-labeled entries in the specified order, and each entry triggers the same
+  outcome as its corresponding icon button (including the delete confirmation modal).
+- Long-press timing/cancel logic (500ms trigger, 10px-move cancel) is verified via Chrome
+  DevTools touch-emulation (dispatched `touchstart`/`touchmove`/`touchend` events) against the
+  dev build, confirming the menu opens on a stationary long-press and does not open when the
+  touch moves past the cancel threshold. Verification on a physical mobile device is a
+  follow-up, not a blocker for this cycle.
+- All 6 existing icon buttons remain unchanged: same position, same click behavior, same
+  aria-labels/tooltips, verified by manual smoke pass alongside the above.
+- `npm run build` (typecheck + production build) and `npm run lint` both green.
+- No changes to `src/ui/quick-picker.ts`.
+
+## Out of scope / follow-up
+
+- Configurable click-action bindings (tracked as a future issue per the public reply on #33).
+- "Select" / multi-select mode with bulk actions (same).
+- Extending the context menu to `quick-picker.ts` rows.
+- Physical-device mobile verification (noted as a DoD follow-up, not a blocker).

@@ -160,3 +160,4 @@ node_modules/
 .claude/nightly-state/
 .claude/test-cmd
 .claude/ui-polish-backlog.md
+.claude/.triage-fix-last-main.json
