@@ -1,4 +1,5 @@
-import { ItemView, Notice, setIcon, setTooltip, type WorkspaceLeaf } from "obsidian";
+import { ItemView, Menu, Notice, setIcon, setTooltip, type WorkspaceLeaf } from "obsidian";
+import { buildCardMenuEntries, type CardMenuActionKey } from "../domain/card-menu";
 import { lintLibrary, type PromptLintResult } from "../domain/lint";
 import { emptyQuery, runQuery, type LibraryQuery } from "../domain/query";
 import { titleMatchRanges } from "../domain/search";
@@ -29,6 +30,8 @@ export class PromptboxLibraryView extends ItemView {
 	private countEl!: HTMLElement;
 	private listEl!: HTMLElement;
 	private unsubscribe: (() => void) | null = null;
+	/** Pending long-press timers, cleared on every render pass so a mid-press re-render can't fire a menu against a detached card (issue #33). */
+	private readonly cardMenuTimers = new Set<number>();
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -101,6 +104,8 @@ export class PromptboxLibraryView extends ItemView {
 		const results = runQuery(index.getAll(), (path) => index.getBody(path), this.effectiveQuery());
 		this.filterBar?.setOptions(this.collectOptions());
 		this.countEl.setText(`${results.length} of ${index.size} prompt(s)`);
+		for (const timer of this.cardMenuTimers) window.clearTimeout(timer);
+		this.cardMenuTimers.clear();
 		this.listEl.empty();
 		if (results.length === 0) {
 			this.renderEmptyState(index.size);
@@ -129,6 +134,7 @@ export class PromptboxLibraryView extends ItemView {
 
 	private renderItem(prompt: Prompt, lintByPath: Map<string, PromptLintResult>): void {
 		const item = this.listEl.createDiv({ cls: "promptbox-item" });
+		this.attachCardMenu(item, prompt);
 
 		const header = item.createDiv({ cls: "promptbox-item__header" });
 		this.addFavoriteToggle(header, prompt);
@@ -147,21 +153,8 @@ export class PromptboxLibraryView extends ItemView {
 			header.createSpan({ text: "★".repeat(prompt.quality), cls: "promptbox-item__quality" });
 		}
 		const actions = header.createDiv({ cls: "promptbox-item__actions" });
-		this.addItemAction(actions, "braces", "Copy with variables", () => {
-			copyWithVariables(
-				this.app,
-				prompt.title,
-				this.plugin.index.getBody(prompt.path),
-				prompt.path,
-				this.plugin.variableModalDeps(),
-				() => this.plugin.recordPromptUsage(prompt.path),
-			);
-		});
-		this.addItemAction(actions, "clipboard-copy", "Copy raw", () => {
-			copyRaw(prompt.title, this.plugin.index.getBody(prompt.path), () =>
-				this.plugin.recordPromptUsage(prompt.path),
-			);
-		});
+		this.addItemAction(actions, "braces", "Copy with variables", () => this.doCopyWithVariables(prompt));
+		this.addItemAction(actions, "clipboard-copy", "Copy raw", () => this.doCopyRaw(prompt));
 		this.addItemAction(actions, "pencil", "Edit metadata", () => this.plugin.openEditModal(prompt.path));
 		this.addItemAction(actions, "file-text", "Open as note", () => {
 			void this.openAsNote(prompt.path);
@@ -219,14 +212,7 @@ export class PromptboxLibraryView extends ItemView {
 		favoriteBtn.setAttribute("aria-label", label);
 		favoriteBtn.setAttribute("aria-pressed", String(prompt.favorite));
 		setTooltip(favoriteBtn, label);
-		favoriteBtn.addEventListener("click", () => {
-			const file = this.app.vault.getFileByPath(prompt.path);
-			if (!file) return;
-			void setFavorite(this.app, file, !prompt.favorite).catch(
-				(error: unknown) =>
-					new Notice(`Promptbox: favorite update failed — ${error instanceof Error ? error.message : String(error)}`),
-			);
-		});
+		favoriteBtn.addEventListener("click", () => this.toggleFavorite(prompt));
 	}
 
 	private addItemAction(container: HTMLElement, icon: string, label: string, onClick: () => void): void {
@@ -235,6 +221,114 @@ export class PromptboxLibraryView extends ItemView {
 		btn.setAttribute("aria-label", label);
 		setTooltip(btn, label);
 		btn.addEventListener("click", onClick);
+	}
+
+	/** Right-click (desktop) / long-press (mobile) context menu on the card, additive to the header icons (issue #33). */
+	private attachCardMenu(item: HTMLElement, prompt: Prompt): void {
+		item.addEventListener("contextmenu", (evt) => {
+			evt.preventDefault();
+			this.openCardMenu(prompt, (menu) => menu.showAtMouseEvent(evt));
+		});
+
+		const LONG_PRESS_MS = 500;
+		const MOVE_CANCEL_PX = 10;
+		let timer: number | null = null;
+		let start = { x: 0, y: 0 };
+		const cancel = (): void => {
+			if (timer !== null) {
+				window.clearTimeout(timer);
+				this.cardMenuTimers.delete(timer);
+				timer = null;
+			}
+		};
+		item.addEventListener("touchstart", (evt) => {
+			if (evt.touches.length > 1) {
+				cancel();
+				return;
+			}
+			const touch = evt.touches[0];
+			if (!touch) return;
+			start = { x: touch.clientX, y: touch.clientY };
+			timer = window.setTimeout(() => {
+				if (timer !== null) this.cardMenuTimers.delete(timer);
+				timer = null;
+				this.openCardMenu(prompt, (menu) => menu.showAtPosition({ x: start.x, y: start.y }));
+			}, LONG_PRESS_MS);
+			this.cardMenuTimers.add(timer);
+		});
+		item.addEventListener("touchmove", (evt) => {
+			if (evt.touches.length > 1) {
+				cancel();
+				return;
+			}
+			const touch = evt.touches[0];
+			if (!touch) return;
+			const dx = touch.clientX - start.x;
+			const dy = touch.clientY - start.y;
+			if (Math.hypot(dx, dy) > MOVE_CANCEL_PX) cancel();
+		});
+		item.addEventListener("touchend", cancel);
+		item.addEventListener("touchcancel", cancel);
+	}
+
+	private openCardMenu(prompt: Prompt, show: (menu: Menu) => void): void {
+		const menu = new Menu();
+		for (const entry of buildCardMenuEntries(prompt)) {
+			if (entry.separatorBefore) menu.addSeparator();
+			menu.addItem((item) => {
+				item.setTitle(entry.label);
+				if (entry.warning) item.setWarning(true);
+				item.onClick(() => this.runCardMenuAction(entry.actionKey, prompt));
+			});
+		}
+		show(menu);
+	}
+
+	private runCardMenuAction(key: CardMenuActionKey, prompt: Prompt): void {
+		switch (key) {
+			case "copy-with-variables":
+				this.doCopyWithVariables(prompt);
+				return;
+			case "copy-raw":
+				this.doCopyRaw(prompt);
+				return;
+			case "edit-metadata":
+				this.plugin.openEditModal(prompt.path);
+				return;
+			case "open-as-note":
+				void this.openAsNote(prompt.path);
+				return;
+			case "toggle-favorite":
+				this.toggleFavorite(prompt);
+				return;
+			case "delete":
+				this.confirmDelete(prompt);
+				return;
+		}
+	}
+
+	private doCopyWithVariables(prompt: Prompt): void {
+		copyWithVariables(
+			this.app,
+			prompt.title,
+			this.plugin.index.getBody(prompt.path),
+			prompt.path,
+			this.plugin.variableModalDeps(),
+			() => this.plugin.recordPromptUsage(prompt.path),
+		);
+	}
+
+	private doCopyRaw(prompt: Prompt): void {
+		copyRaw(prompt.title, this.plugin.index.getBody(prompt.path), () => this.plugin.recordPromptUsage(prompt.path));
+	}
+
+	private toggleFavorite(prompt: Prompt): void {
+		const file = this.app.vault.getFileByPath(prompt.path);
+		if (!file) return;
+		void setFavorite(this.app, file, !prompt.favorite).catch(
+			(error: unknown) =>
+				new Notice(`Promptbox: favorite update failed — ${error instanceof Error ? error.message : String(error)}`),
+		);
 	}
 
 	private async openAsNote(path: string): Promise<void> {
