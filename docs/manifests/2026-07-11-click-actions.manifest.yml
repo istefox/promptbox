@@ -7,9 +7,9 @@ anonymize: true
 humanize: true
 chain_path: "hybrid"
 created_at: "2026-07-11T18:49:49+00:00"
-last_updated_at: "2026-07-11T19:25:58+00:00"
-current_step: "step_h5_commit"
-status: "in_progress"
+last_updated_at: "2026-07-11T20:45:24+00:00"
+current_step: "completed"
+status: "completed"
 
 # Gate 0 routing result (ADR-0017)
 gate0:
