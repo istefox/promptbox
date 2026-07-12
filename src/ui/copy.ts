@@ -1,4 +1,5 @@
 import { Notice, type App } from "obsidian";
+import { stripWrappingCodeFence } from "../domain/code-fence";
 import { isContextVariable, parsePlaceholders } from "../domain/placeholders";
 import { assembleBody, detectWikilinks } from "../domain/transclusion";
 import { resolveContextVariables } from "./context-variables";
@@ -38,6 +39,8 @@ export function copyWithVariables(
 	deps: VariableModalDeps,
 	onCopied?: () => void,
 ): void {
+	body = stripWrappingCodeFence(body);
+
 	async function run(): Promise<void> {
 		const links = detectWikilinks(body);
 		const { resolved, unresolved } = await resolveWikilinks(app, sourcePath, links);
@@ -88,7 +91,7 @@ export function copyWithVariables(
 
 /** Verbatim copy, placeholders untouched — escape hatch for other templating systems (FR-4.5). `onCopied` (FR-23.1) runs only on a real copy. */
 export function copyRaw(title: string, body: string, onCopied?: () => void): void {
-	void writeClipboard(body, `${title} (raw)`).then((copied) => {
+	void writeClipboard(stripWrappingCodeFence(body), `${title} (raw)`).then((copied) => {
 		if (copied) onCopied?.();
 	});
 }
