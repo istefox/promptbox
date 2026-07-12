@@ -161,3 +161,4 @@ node_modules/
 .claude/test-cmd
 .claude/ui-polish-backlog.md
 .claude/.triage-fix-last-main.json
+.claude/.triage-fix-last-fix_strip-wrapping-code-fence.json
