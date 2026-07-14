@@ -1,8 +1,11 @@
 import { debounce, Notice, Plugin, TFile, type ObsidianProtocolData } from "obsidian";
 import { mergeSettings, type PromptboxSettings } from "./settings";
+import { renameChainSteps } from "./domain/chains";
 import { normalizeUsage, pruneUsage, recordUsage, renameUsage, type UsageStore } from "./domain/usage";
 import { readPromptFromCache, stripFrontmatter } from "./storage/frontmatter";
 import { PromptIndex } from "./storage/indexer";
+import { ChainModal, type ChainModalDeps } from "./ui/chain-modal";
+import type { ChainWizardDeps } from "./ui/chain-wizard-modal";
 import { PromptboxLibraryView, VIEW_TYPE_LIBRARY } from "./ui/library-view";
 import { LintModal } from "./ui/lint-modal";
 import { PromptModal } from "./ui/prompt-modal";
@@ -81,6 +84,11 @@ export default class PromptboxPlugin extends Plugin {
 			id: "new-prompt",
 			name: "New prompt",
 			callback: () => this.openCreateModal(),
+		});
+		this.addCommand({
+			id: "new-chain",
+			name: "New chain",
+			callback: () => this.openChainModal(),
 		});
 		this.addCommand({
 			id: "edit-prompt-metadata",
@@ -177,11 +185,34 @@ export default class PromptboxPlugin extends Plugin {
 							void this.index.handleRename(oldPath, file.path);
 							this.usage = renameUsage(this.usage, oldPath, file.path);
 							this.debouncedSaveUsage();
+							void this.rewriteChainSteps(oldPath, file.path);
 						}
 					}),
 				);
 			});
 		});
+	}
+
+	/**
+	 * ADR-0018: rewrites every chain note's `chain` array on a step's
+	 * rename/move, reusing the same rename event that already migrates usage
+	 * (ADR-0015). A chain note's own path change is handled by the index, not
+	 * here; only step entries that match `oldPath` are ever touched, and only
+	 * notes whose array actually changed are written.
+	 */
+	private async rewriteChainSteps(oldPath: string, newPath: string): Promise<void> {
+		for (const prompt of this.index.getAll()) {
+			if (prompt.chain === undefined) continue;
+			const rewritten = renameChainSteps(prompt.chain, oldPath, newPath);
+			const unchanged =
+				rewritten.length === prompt.chain.length && rewritten.every((step, i) => step === prompt.chain?.[i]);
+			if (unchanged) continue;
+			const file = this.app.vault.getFileByPath(prompt.path);
+			if (!file) continue;
+			await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
+				fm["chain"] = rewritten;
+			});
+		}
 	}
 
 	/** FR-13: `obsidian://promptbox` launcher URI action. Waits on the first index scan (ADR-0008). */
@@ -281,6 +312,15 @@ export default class PromptboxPlugin extends Plugin {
 		};
 	}
 
+	/** Narrow deps for `ChainWizardModal` (ADR-0018), mirrors `variableModalDeps()`. */
+	chainWizardDeps(): ChainWizardDeps {
+		return {
+			allPrompts: this.index.getAll(),
+			getBody: (path: string) => this.index.getBody(path),
+			profiles: this.settings.profiles,
+		};
+	}
+
 	/** FR-14.3: save-as-profile, called from the variable modal. */
 	async saveVariableProfile(name: string, values: Record<string, string>): Promise<void> {
 		this.settings.profiles = upsertProfile(this.settings.profiles, name, values);
@@ -337,6 +377,33 @@ export default class PromptboxPlugin extends Plugin {
 			return;
 		}
 		new PromptModal(this.app, this.modalDeps(), { kind: "edit", file, prompt }).open();
+	}
+
+	/** Narrow deps for `ChainModal` (ADR-0018), mirrors `modalDeps()`. */
+	private chainModalDeps(): ChainModalDeps {
+		return {
+			settings: this.settings,
+			folder: this.settings.promptsFolder,
+			allPrompts: this.index.getAll(),
+			getBody: (path: string) => this.index.getBody(path),
+			openFile: (file: TFile) => {
+				void this.app.workspace.getLeaf(false).openFile(file);
+			},
+		};
+	}
+
+	openChainModal(path?: string): void {
+		if (path === undefined) {
+			new ChainModal(this.app, this.chainModalDeps(), { kind: "create" }).open();
+			return;
+		}
+		const file = this.app.vault.getFileByPath(path);
+		const prompt = this.index.get(path) ?? (file ? readPromptFromCache(this.app, file) : undefined);
+		if (!file || !prompt) {
+			new Notice("Promptbox: prompt not found.");
+			return;
+		}
+		new ChainModal(this.app, this.chainModalDeps(), { kind: "edit", file, prompt }).open();
 	}
 
 	async saveSettings(): Promise<void> {

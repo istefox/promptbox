@@ -1,148 +1,245 @@
-# SPEC: Click actions on prompt cards
+# SPEC: Prompt chains
 
-**Topic slug:** click-actions
+**Topic slug:** prompt-chains
 
 ## Objective
 
-Add a right-click (desktop) / long-press (mobile) context menu to each prompt card in the
-library view (`ItemView`, `src/ui/library-view.ts`), carrying the card's existing actions as
-text-label menu items. Resolves GitHub issue #33.
+Let a user define an ordered sequence of existing prompt notes ("chain") and walk through it
+with a guided wizard: copy each step's compiled prompt, paste the external AI's answer back in
+to feed the next step, without Promptbox ever calling an AI itself.
 
 ## Origin and scope boundary
 
-Reported by @craziedde in istefox/promptbox#33. Two follow-ups clarified the ask into a larger
-set of ideas (configurable click bindings, a future multi-select mode with bulk actions); the
-maintainer's public reply (issue comment, 2026-07-11) explicitly scoped this pass to the
-context menu only, deferring the rest to a future issue. This SPEC implements exactly that
-scoped commitment. It does not renegotiate it.
+Design direction explored via `design-brainstorm` (`BRAINSTORM.md`, 2026-07-14) before this
+interview. The core constraint locked there and not renegotiated here: Promptbox makes no
+network calls (ADR-0003), so a chain can never execute automatically against an LLM. This SPEC
+only extracts the requirements for the manual, guided-copy version of the feature.
 
 **Explicitly out of scope for this feature:**
-- User-configurable/remappable click bindings.
-- A "Select" / multi-select mode with bulk actions (delete, tag, etc.).
-- Any change to `src/ui/quick-picker.ts` (FuzzySuggestModal). That surface already has its own
-  Ctrl/Cmd+click convention ("copy raw") and is not part of this SPEC.
+- Automatic execution against an AI API (would require a network call; contradicts the
+  no-network constraint that holds across every tier so far).
+- Branching or conditional steps. Chains are fixed linear sequences only.
+- Chains inside curated packs (ADR-0013). Noted as a future idea, not built now.
 
-## Current state (confirmed during interview)
+## Current state (confirmed during interview / codebase check)
 
-- `library-view.ts` renders one card per prompt with a header row of 6 icon buttons:
-  Favorite toggle (star), Copy with variables, Copy raw, Edit metadata, Open as note, Delete.
-- The card container itself (body, preview text, meta pills, title) has **no existing click
-  handler.** Only the icon buttons are interactive today, and there is nothing to preserve or
-  conflict with on the card body.
-- All 6 actions already have working handlers (`addItemAction`, `addFavoriteToggle`,
-  `confirmDelete`) that this feature reuses; it does not introduce new business logic for any
-  action, only a second entry point to trigger them.
+- `Prompt` (`src/domain/prompt.ts`) already has a `type: string` field, free-form and
+  user-editable (default `"task"`), used for the user's own classification of a prompt (e.g.
+  "task", "chat"). It is **not** a structural discriminator and must not be repurposed as one.
+  This ruled out the `type: chain` marker considered during the brainstorm.
+- `KNOWN_FIELDS` in `prompt.ts` is the tolerant-parsing allowlist; any frontmatter key not in
+  it lands in `custom` (NFR-8, unrecognized-but-preserved). A new `chain` field must be added
+  to `KNOWN_FIELDS` and to the `Prompt` interface, following the same silent-tolerant,
+  omit-on-default pattern already used for `favorite` (ADR-0004).
+- Existing precedent this feature reuses directly: `variable-profiles.ts` (named value sets,
+  ADR-0009), `usage.ts` rename-tracking migration (ADR-0015), `lint.ts` rule set L1-L7
+  (ADR-0010), `FuzzySuggestModal`-based picking (`quick-picker.ts`, `placeholder-palette.ts`),
+  `{{@clipboard}}` context variable (ADR-0005, `context-variables.ts`).
 
 ## Scope
 
-1. **New interaction:** right-click (desktop `contextmenu` event) or long-press (mobile touch,
-   500ms, cancelled if the touch moves more than 10px) anywhere on a prompt card opens an
-   Obsidian `Menu` populated with all 6 actions as text-label items, using Obsidian's native
-   `Menu`/`MenuItem` API (`showAtMouseEvent` for desktop, `showAtPosition` for the long-press
-   touch point on mobile).
-2. **Icon buttons are unchanged.** All 6 remain exactly as they are today, at the same
-   position, with the same click behavior, aria-labels, and tooltips. The context menu is a
-   fully additive second path to the same actions, so there is zero regression risk on existing behavior.
-3. **Menu triggers everywhere on the card**, including when right-clicking directly over an
-   icon button (no special-casing of `event.target`; the listener is on the card root and
-   always shows the same menu regardless of what's under the pointer).
-4. **Menu content and order** (frequency-ordered, one separator before the destructive item):
-   1. Copy with variables
-   2. Copy raw
-   3. Edit metadata
-   4. Open as note
-   5. Add to favorites / Remove from favorites (label reflects current `prompt.favorite` state)
-   6. (separator)
-   7. Delete (styled via `MenuItem.setWarning(true)`)
-5. **Single click on the card is unaffected.** There is no existing handler to change, and
-   this feature does not add one; single-click behavior stays exactly as-is.
+### 1. Chain identity and frontmatter
+
+- A chain is a normal vault note. It is identified purely by the **presence** of a `chain`
+  frontmatter field: `chain: [path1, path2, ...]` (ordered list of prompt note paths). No
+  separate boolean marker field; no reuse of the existing `type` field.
+- A chain note must have **at least 2 steps** to be saved. The creation/edit modal blocks
+  saving with an inline error ("A chain needs at least 2 steps") if the list has 0 or 1 entry.
+- The same prompt path may appear more than once in `chain` (e.g. a refinement prompt reused
+  mid-chain and again at the end). No uniqueness constraint.
+- `chain: []` or a `chain` field reduced to one entry outside the modal (hand-edited
+  frontmatter) is tolerated per NFR-8, not rejected at parse time — only the modal enforces the
+  2-step minimum at save time. See Edge cases for the read-time behavior of a sub-2-step chain.
+
+### 2. Creation and editing
+
+- New entry point ("New chain") opens a dedicated modal, following the existing `Modal` +
+  `Setting` convention (no new UI framework).
+- Steps are added one at a time via a `FuzzySuggestModal` picker over existing prompts (same
+  interaction pattern as `placeholder-palette.ts`), appended in pick order.
+- Each step row has up/down arrow buttons to reorder (keyboard-accessible, no drag-and-drop
+  library dependency) and a remove button.
+- If editing an existing chain down to exactly 1 remaining step, the modal does not silently
+  auto-convert or auto-delete the note. It shows an explicit **"Convert to single prompt"**
+  button. Clicking it: transcludes the remaining step's prompt body into this note's body
+  (same mechanism as vault-transclusion, ADR-0007) and removes the `chain` field — the note
+  becomes a normal, standalone, usable prompt with real content, not an empty shell. This is
+  the only way a chain note stops being a chain; it never happens automatically.
+
+### 3. Wizard execution
+
+- Entry point: clicking a chain's card in the library view (same click-to-act convention as a
+  normal prompt card) opens the wizard modal, instead of the normal copy/fill flow.
+- Before step 1, a single picker asks which variable profile (ADR-0009) to apply for the
+  entire chain (optional — can be skipped to fill everything manually per step). The chosen
+  profile's values are applied automatically at every step that references them; the user is
+  never asked for the same value twice across the chain.
+- Each step screen shows: a "Step N of M" progress header, the step's prompt fully compiled
+  (profile values + any per-step-only variables + `{{@previous}}` resolved), an explicit
+  "Copy" button, and "Back"/"Next" navigation.
+- `{{@previous}}` is a **display-only alias** for `{{@clipboard}}` (ADR-0005) — it resolves to
+  the exact same value, but the fill UI labels it "Previous step output" instead of
+  "Clipboard" so the user understands its role in a chain context. No new parsing, no new
+  reserved-variable behavior; `context-variables.ts` is unchanged except for this label.
+- Closing the wizard early (Escape, click outside) simply closes it. No progress is persisted;
+  reopening the chain restarts at step 1. This is a session-scoped wizard, not a resumable
+  workflow — consistent with the wizard/multi-step-form analogy chosen during the brainstorm.
+- If a step's path does not resolve to an existing prompt (deleted or otherwise orphaned), the
+  wizard blocks that step with an explicit error message and offers "Skip this step" or
+  "Cancel chain" — it never silently skips or copies empty/broken text.
+
+### 4. Library view integration
+
+- Chain notes appear in the same filterable/searchable list as regular prompts (no separate
+  tab or view).
+- A chain card shows a distinct badge, e.g. "Chain · 4 steps", instead of the normal prompt
+  preview text.
+- A chain with 0 resolvable steps (empty or fully-orphaned `chain` array) shows a "0 steps"
+  badge state; clicking it opens the note for editing instead of attempting to start a wizard.
+
+### 5. Rename resilience
+
+- A vault rename/move event listener rewrites any `chain` array entry that matches the
+  renamed/moved path, across all chain notes, the same way `usage.ts` already migrates its
+  path-keyed records on rename (ADR-0015 precedent). This runs automatically; no user action
+  required.
+
+### 6. Lint coverage
+
+- Extends the existing lint rule set (ADR-0010, `lint.ts`, currently L1-L7) with a new rule
+  **L8**: flags a chain note whose `chain` array contains one or more paths that do not
+  resolve to an existing prompt note (orphan steps). Ships in the first release, not deferred,
+  since a silently-broken chain was the top risk identified in the brainstorm's pre-mortem.
 
 ## Architecture (ADR-0001 pattern: pure domain + thin UI glue)
 
-- **`src/domain/card-menu.ts`** (new, no Obsidian import, vitest-covered): pure function
-  `buildCardMenuEntries(prompt: Prompt): CardMenuEntry[]` returning the ordered, labeled entry
-  list above as data, typed as `{ label: string; actionKey: CardMenuActionKey; warning: boolean;
-  separatorBefore: boolean }[]`. Contains all logic that can vary (favorite label toggling,
-  ordering, which entries apply) so it is independently testable without a DOM or an Obsidian
-  `App` instance. Mirrors the existing pattern in `src/domain/related.ts` and
-  `src/domain/placeholder-palette.ts`.
-- **`src/ui/library-view.ts`** (modified): a new private method (e.g. `attachCardMenu`) wires
-  one `contextmenu` listener (desktop) and one long-press touch listener (mobile: `touchstart`
-  starts a 500ms timer, `touchmove` beyond 10px or `touchend`/`touchcancel` before the timer
-  fires cancels it) onto the card root element created in the existing render path. On trigger:
-  call `buildCardMenuEntries(prompt)`, map each `CardMenuEntry` to `menu.addItem(...)`, and
-  dispatch `actionKey` to the existing handler methods already used by the icon buttons (no
-  duplicated business logic; the menu calls the same functions the icons call).
-- No changes to `src/domain/prompt.ts`, frontmatter schema, or any storage/index code. This is
-  a pure UI/interaction feature.
+- **`src/domain/chains.ts`** (new, no Obsidian import, vitest-covered): pure functions for
+  parsing/validating the `chain` frontmatter field (tolerant per NFR-8), enforcing the 2-step
+  minimum at the validation boundary the modal calls into, computing wizard step data
+  (compiled text per step, resolved `{{@previous}}` via the existing `{{@clipboard}}`
+  resolution path), and the path-rewrite logic used by the rename listener. Mirrors the shape
+  of `related.ts` and `variable-profiles.ts`.
+- **`src/domain/prompt.ts`** (modified): add optional `chain?: string[]` to the `Prompt`
+  interface and `"chain"` to `KNOWN_FIELDS`, following the exact omit-on-default,
+  silent-tolerant pattern `favorite` already uses (ADR-0004).
+- **`src/domain/lint.ts`** (modified): add rule `L8` for orphan chain steps, following the
+  existing per-prompt rule shape (`ruleId`, `severity`, `message`).
+- **`src/ui/chain-modal.ts`** (new): creation/edit modal — step list with reorder/remove,
+  `FuzzySuggestModal` step picker, 2-step-minimum validation, "Convert to single prompt"
+  action. Built on `Modal` + `Setting`, matching `prompt-modal.ts`'s structure.
+- **`src/ui/chain-wizard-modal.ts`** (new): the execution wizard — profile picker step, then
+  one screen per chain step with progress header, compiled text, Copy button, Back/Next,
+  orphan-step blocking error with Skip/Cancel.
+- **`src/ui/library-view.ts`** (modified): card rendering branches on presence of `prompt.chain`
+  to show the chain badge and route the click handler to `chain-wizard-modal.ts` instead of
+  the normal copy/fill flow.
+- **Rename listener** (extends the existing vault-event wiring used by `usage.ts`'s migration,
+  likely in the plugin's `onload`): on a vault rename event, calls into `chains.ts`'s
+  path-rewrite function for every chain note in the index.
 
 ## Data model
 
-No new persisted fields. `CardMenuEntry` is an in-memory UI type only (not frontmatter, not
-`data.json`), defined in `src/domain/card-menu.ts`.
+No new `data.json` entries — a chain lives entirely in its own note's frontmatter, consistent
+with ADR-0001 (notes are the source of truth). No transfer/export schema version bump: `chain`
+is additive to the existing per-prompt export shape, `schema_version` stays 1 (ADR-0006-era
+convention).
 
 ```
-type CardMenuActionKey =
-  | "copy-with-variables" | "copy-raw" | "edit-metadata"
-  | "open-as-note" | "toggle-favorite" | "delete";
-
-interface CardMenuEntry {
-  label: string;
-  actionKey: CardMenuActionKey;
-  warning: boolean;
-  separatorBefore: boolean;
+interface Prompt {
+  // ...existing fields unchanged...
+  chain?: string[];   // ordered prompt paths; omitted entirely for non-chain notes
 }
 ```
 
-## UI flow
+Frontmatter shape on disk for a chain note:
 
-1. User right-clicks (desktop) or long-presses ≥500ms without moving >10px (mobile) anywhere
-   on a prompt card.
-2. Native OS/browser context menu is suppressed (`event.preventDefault()`); Obsidian `Menu` is
-   shown at the pointer/touch position.
-3. Menu shows the 6 entries in the order defined above, Delete visually separated and styled
-   as a warning.
-4. Selecting an entry runs the same handler the equivalent icon button runs today (including
-   the existing delete confirmation modal, unchanged).
-5. Menu dismisses on selection, outside click, or Escape (native `Menu` behavior, no custom
-   handling needed).
+```yaml
+---
+title: "Research → Draft → Polish"
+chain:
+  - prompts/research-outline.md
+  - prompts/first-draft.md
+  - prompts/polish-tone.md
+---
+```
+
+(Body of a chain note is unused/empty unless it has been explicitly converted to a single
+prompt via the "Convert to single prompt" action, at which point `chain` is removed and the
+body holds real transcluded content.)
+
+## UI flows
+
+**Create a chain:**
+1. User triggers "New chain" (new command/button, exact placement mirrors the existing "New
+   prompt" entry point).
+2. `chain-modal.ts` opens empty; user adds steps via the `FuzzySuggestModal` picker, reorders
+   with up/down arrows, optionally removes steps.
+3. Save is blocked with an inline error while fewer than 2 steps are present.
+4. On save, a new note is written with `chain: [...]` frontmatter (no body content).
+
+**Run a chain:**
+1. User clicks a chain card in the library view.
+2. `chain-wizard-modal.ts` opens; optional variable-profile picker, then step 1.
+3. Each step: read compiled text, click Copy, paste into external AI tool, copy its answer,
+   click Next.
+4. Step 2+: `{{@previous}}` (labeled "Previous step output") is pre-filled with whatever is
+   currently on the clipboard — the answer just copied in step 3 above.
+5. On the last step, "Next" becomes "Finish" and simply closes the wizard. No summary screen,
+   no persisted execution record.
+
+**Edit a chain down to 1 step:**
+1. User removes steps in `chain-modal.ts` until only one remains.
+2. Save is blocked (2-step minimum); the modal instead shows "Convert to single prompt".
+3. Clicking it transcludes the remaining step's body and strips `chain`, turning the note into
+   a regular, standalone prompt.
 
 ## Edge cases
 
-- **Right-click directly on an icon button:** menu still opens (per interview decision, no
-  target-checking). The icon's own click handler is unaffected since `contextmenu` and `click`
-  are different events.
-- **Long-press that turns into a scroll gesture:** cancelled once touch movement exceeds 10px;
-  the list scrolls normally, no menu appears.
-- **Long-press released before 500ms (a tap):** timer is cleared on `touchend`; no menu, no
-  interference with any future tap behavior.
-- **Favorite label:** always reflects live `prompt.favorite` state at menu-open time (same
-  data source the star icon already uses), so it can never show a stale toggle direction.
-- **Prompt with corruptible/invalid frontmatter (NFR-8):** `buildCardMenuEntries` operates on
-  already-tolerantly-parsed `Prompt` data (same object the icons use), so no new failure mode
-  is introduced.
+- **Duplicate step in the same chain:** allowed without restriction; `chain` is a list, not a
+  set. The wizard shows the same prompt twice at its two positions, independently compiled.
+- **`chain: []` or `chain` with 1 entry via hand-edited frontmatter (bypassing the modal):**
+  tolerated at parse time (NFR-8); the library-view card shows a "0/1 steps" badge and clicking
+  it opens the note for editing (via `chain-modal.ts`, where the 2-step-minimum guard applies
+  again on save) rather than starting a wizard.
+- **A step's path is renamed/moved elsewhere in the vault:** the rename listener rewrites the
+  `chain` array automatically; no user action needed, no orphan created by this path.
+- **A step's path is deleted (not renamed):** becomes a true orphan; caught by lint rule L8 at
+  any time, and blocked with an explicit error (Skip/Cancel) if reached during a wizard run.
+- **Closing the wizard mid-chain:** discards all in-progress state; no partial-execution record
+  is written anywhere. Reopening always restarts at step 1.
+- **Variable profile chosen at wizard start conflicts with a step's own required variable not
+  covered by the profile:** the step still prompts for that specific variable individually
+  (profile values are a superset convenience, not an exclusive source), consistent with how
+  profiles already behave outside chains (ADR-0009).
 
 ## Success criteria / Definition of Done
 
-- `src/domain/card-menu.ts` exists, has no Obsidian import, and has vitest coverage for:
-  entry ordering, the favorite label toggling both directions, and the warning/separator flags
-  on Delete.
-- Right-click on a card in a running dev-build desktop Obsidian instance opens the menu with
-  all 6 correctly-labeled entries in the specified order, and each entry triggers the same
-  outcome as its corresponding icon button (including the delete confirmation modal).
-- Long-press timing/cancel logic (500ms trigger, 10px-move cancel) is verified via Chrome
-  DevTools touch-emulation (dispatched `touchstart`/`touchmove`/`touchend` events) against the
-  dev build, confirming the menu opens on a stationary long-press and does not open when the
-  touch moves past the cancel threshold. Verification on a physical mobile device is a
-  follow-up, not a blocker for this cycle.
-- All 6 existing icon buttons remain unchanged: same position, same click behavior, same
-  aria-labels/tooltips, verified by manual smoke pass alongside the above.
+- `src/domain/chains.ts` exists, has no Obsidian import, and has vitest coverage for: 2-step
+  minimum validation, duplicate-step tolerance, empty/short-chain tolerant parsing, wizard
+  step-data compilation (including `{{@previous}}` resolving to the same value as
+  `{{@clipboard}}`), and the rename path-rewrite function.
+- `lint.ts` rule `L8` is implemented and covered by a vitest test asserting it fires on a chain
+  with at least one orphan step and stays silent on a fully-resolvable chain.
+- Manual smoke pass on a dev build: create a chain (add/reorder/remove steps, 2-step-minimum
+  error shown correctly), run its wizard end-to-end (profile picker, Copy per step,
+  `{{@previous}}` label and value correctness, Finish), rename a step's source note and confirm
+  the chain's `chain` array updates automatically, delete a step's source note and confirm the
+  wizard blocks with the orphan error.
+- Manual smoke pass for "Convert to single prompt": reduce a chain to 1 step, confirm save is
+  blocked, click the convert button, confirm the resulting note has real transcluded body
+  content and no `chain` field.
+- Library view: chain cards show the correct step-count badge, including the "0/1 steps" edge
+  state, and clicking them routes correctly (wizard vs. edit-note-for-broken-chain).
 - `npm run build` (typecheck + production build) and `npm run lint` both green.
-- No changes to `src/ui/quick-picker.ts`.
+- No regression to existing single-prompt card behavior, `{{@clipboard}}` outside of chains, or
+  `variable-profiles.ts` usage outside of chains.
 
 ## Out of scope / follow-up
 
-- Configurable click-action bindings (tracked as a future issue per the public reply on #33).
-- "Select" / multi-select mode with bulk actions (same).
-- Extending the context menu to `quick-picker.ts` rows.
-- Physical-device mobile verification (noted as a DoD follow-up, not a blocker).
+- Automatic execution against an AI API (network call — contradicts the standing no-network
+  constraint).
+- Branching or conditional chain steps.
+- Chains inside curated packs (ADR-0013) — noted as a future idea in the brainstorm, not built
+  in this pass.
+- Physical-device mobile verification of the wizard modal (dev-build/desktop smoke only for
+  this cycle, same follow-up pattern already used for click-actions).

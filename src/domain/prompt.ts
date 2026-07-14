@@ -1,3 +1,5 @@
+import { readChain } from "./chains";
+
 export const VISIBILITIES = ["private", "public"] as const;
 export type Visibility = (typeof VISIBILITIES)[number];
 
@@ -14,6 +16,8 @@ export interface Prompt {
 	created: string;
 	updated: string;
 	favorite: boolean;
+	/** Present => chain note (list tolerantly cleaned); absent => normal prompt (ADR-0018). */
+	chain?: string[];
 	/** Unrecognized frontmatter fields, preserved verbatim (phase-2 namespaced fields included). */
 	custom: Record<string, unknown>;
 	/** Normalization problems found on read; the note is still usable (NFR-8). */
@@ -40,6 +44,7 @@ const KNOWN_FIELDS = new Set([
 	"created",
 	"updated",
 	"favorite",
+	"chain",
 ]);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -171,6 +176,7 @@ export function normalizePrompt(rawInput: unknown, ctx: NormalizeContext): Promp
 		created: readDate(raw, "created", ctx.today, warnings),
 		updated: readDate(raw, "updated", ctx.today, warnings),
 		favorite: readFavorite(raw["favorite"]),
+		chain: "chain" in raw ? readChain(raw["chain"]) : undefined,
 		custom,
 		warnings,
 	};

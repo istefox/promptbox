@@ -144,3 +144,29 @@ describe("favorite (FR-9.1)", () => {
 		expect(p.custom).toEqual({});
 	});
 });
+
+describe("chain (ADR-0018)", () => {
+	it("is undefined when the key is absent", () => {
+		const p = normalizePrompt({ title: "t" }, CTX);
+		expect(p.chain).toBeUndefined();
+	});
+
+	it("normalizes a well-formed list and keeps it out of custom", () => {
+		const p = normalizePrompt({ title: "t", chain: ["a.md", "b.md"] }, CTX);
+		expect(p.chain).toEqual(["a.md", "b.md"]);
+		expect(p.custom).not.toHaveProperty("chain");
+	});
+
+	it("is present but empty for chain: [], distinct from absence", () => {
+		const p = normalizePrompt({ title: "t", chain: [] }, CTX);
+		expect(p.chain).toEqual([]);
+		expect(p.chain).not.toBeUndefined();
+	});
+
+	it("tolerates a scalar value, normalizing to [] without an extra warning", () => {
+		const p = normalizePrompt({ title: "t", chain: "a.md" }, CTX);
+		const baseline = normalizePrompt({ title: "t" }, CTX);
+		expect(p.chain).toEqual([]);
+		expect(p.warnings).toEqual(baseline.warnings);
+	});
+});

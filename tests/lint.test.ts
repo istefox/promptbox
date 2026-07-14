@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findDuplicateTitleFindings, lintLibrary, lintPrompt } from "../src/domain/lint";
+import { findChainOrphanFindings, findDuplicateTitleFindings, lintLibrary, lintPrompt } from "../src/domain/lint";
 import { normalizePrompt, type Prompt } from "../src/domain/prompt";
 
 const CTX_TODAY = "2026-07-03";
@@ -109,6 +109,28 @@ describe("findDuplicateTitleFindings (L6)", () => {
 	});
 });
 
+describe("findChainOrphanFindings (L8)", () => {
+	it("flags a chain with an unresolvable step, naming the orphan path", () => {
+		const chain = p("chain.md", { title: "Chain", chain: ["a.md", "missing.md"] });
+		const result = findChainOrphanFindings([chain, WELL_FORMED]);
+		expect(result.get("chain.md")).toHaveLength(1);
+		expect(result.get("chain.md")?.[0]?.ruleId).toBe("L8");
+		expect(result.get("chain.md")?.[0]?.severity).toBe("warning");
+		expect(result.get("chain.md")?.[0]?.message).toContain("missing.md");
+	});
+
+	it("stays silent when every step resolves", () => {
+		const chain = p("chain.md", { title: "Chain", chain: ["a.md"] });
+		const result = findChainOrphanFindings([chain, WELL_FORMED]);
+		expect(result.has("chain.md")).toBe(false);
+	});
+
+	it("never flags a non-chain prompt, whatever its body", () => {
+		const result = findChainOrphanFindings([WELL_FORMED]);
+		expect(result.has("a.md")).toBe(false);
+	});
+});
+
 describe("lintLibrary", () => {
 	it("returns [] for an empty library without throwing", () => {
 		expect(lintLibrary([], () => "")).toEqual([]);
@@ -129,5 +151,14 @@ describe("lintLibrary", () => {
 		const results = lintLibrary([a, b], () => "body");
 		expect(results.find((r) => r.path === "a.md")?.findings.some((f) => f.ruleId === "L6")).toBe(true);
 		expect(results.find((r) => r.path === "b.md")?.findings.some((f) => f.ruleId === "L6")).toBe(true);
+	});
+
+	it("merges L8 alongside L6 duplicate findings for the same path without dropping either", () => {
+		const a = p("a.md", { title: "draft email", category: "dev", use_case: "u", chain: ["missing.md"] });
+		const b = p("b.md", { title: "Draft Email", category: "dev", use_case: "u" });
+		const results = lintLibrary([a, b], () => "body");
+		const findingsA = results.find((r) => r.path === "a.md")?.findings ?? [];
+		expect(findingsA.some((f) => f.ruleId === "L6")).toBe(true);
+		expect(findingsA.some((f) => f.ruleId === "L8")).toBe(true);
 	});
 });

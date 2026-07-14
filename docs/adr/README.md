@@ -21,3 +21,5 @@ Decisions are numbered, immutable once accepted (superseded by new ADRs, never e
 | [0015](0015-usage-recency-tracking.md) | Usage recency tracking as plugin-local state in `data.json` keyed by path | Accepted |
 | [0016](0016-placeholder-insertion-palette.md) | Placeholder insertion palette: one pure catalog/trigger module shared across four native UI surfaces | Accepted |
 | [0017](0017-fuzzy-search-relevance.md) | Fuzzy library search with relevance ranking | Accepted |
+| [0018](0018-prompt-chains.md) | Prompt chains as a vault note discriminated by a `chain` frontmatter field | Accepted |
+</content>
