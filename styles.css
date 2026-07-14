@@ -584,3 +584,44 @@
 .promptbox-placeholder-dropdown.is-hidden {
 	display: none;
 }
+
+/* Prompt chains (ADR-0018) */
+.promptbox-item--chain {
+	cursor: pointer;
+}
+
+.promptbox-item__chain-badge {
+	margin-top: var(--size-2-2);
+	color: var(--text-accent);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.promptbox-chain-steps {
+	margin-top: var(--size-4-2);
+}
+
+.promptbox-chain-steps__error {
+	color: var(--text-error);
+	font-size: var(--font-ui-smaller);
+	margin-top: var(--size-2-2);
+	overflow-wrap: anywhere;
+}
+
+.promptbox-chain-wizard__progress {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin-bottom: var(--size-2-2);
+}
+
+.promptbox-chain-wizard__error {
+	color: var(--text-error);
+	margin-bottom: var(--size-4-2);
+	overflow-wrap: anywhere;
+}
+
+.promptbox-chain-wizard__compiled {
+	width: 100%;
+	resize: vertical;
+	margin-top: var(--size-2-2);
+}

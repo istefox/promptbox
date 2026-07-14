@@ -45,3 +45,41 @@ describe("buildCardMenuEntries (issue #33)", () => {
 		expect(del?.separatorBefore).toBe(true);
 	});
 });
+
+describe("buildCardMenuEntries chain awareness (ADR-0018)", () => {
+	it("replaces the two copy entries with a single 'Run chain' entry when canRunChain is true", () => {
+		const entries = buildCardMenuEntries(p({ title: "Chain", chain: ["b.md", "c.md"] }), true);
+		expect(entries.map((e) => e.actionKey)).toEqual([
+			"open-chain",
+			"edit-metadata",
+			"open-as-note",
+			"toggle-favorite",
+			"delete",
+		]);
+		expect(entries[0]?.label).toBe("Run chain");
+	});
+
+	it("labels the entry 'Edit chain' when canRunChain is false", () => {
+		const entries = buildCardMenuEntries(p({ title: "Chain", chain: ["b.md"] }), false);
+		const chainEntry = entries.find((e) => e.actionKey === "open-chain");
+		expect(chainEntry?.label).toBe("Edit chain");
+	});
+
+	it("defaults to 'Edit chain' when canRunChain is omitted", () => {
+		const entries = buildCardMenuEntries(p({ title: "Chain", chain: ["b.md", "c.md"] }));
+		const chainEntry = entries.find((e) => e.actionKey === "open-chain");
+		expect(chainEntry?.label).toBe("Edit chain");
+	});
+
+	it("leaves a non-chain prompt's entries untouched even when canRunChain is true", () => {
+		const entries = buildCardMenuEntries(p({ title: "Alpha" }), true);
+		expect(entries.map((e) => e.actionKey)).toEqual([
+			"copy-with-variables",
+			"copy-raw",
+			"edit-metadata",
+			"open-as-note",
+			"toggle-favorite",
+			"delete",
+		]);
+	});
+});

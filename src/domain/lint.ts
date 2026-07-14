@@ -1,8 +1,9 @@
+import { chainOrphanSteps } from "./chains";
 import { findConflictingVariableNames, hasMalformedPlaceholders } from "./placeholders";
 import type { Prompt } from "./prompt";
 import { slugify } from "./slug";
 
-export type LintRuleId = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7";
+export type LintRuleId = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7" | "L8";
 
 export interface LintFinding {
 	ruleId: LintRuleId;
@@ -105,12 +106,40 @@ export function findDuplicateTitleFindings(prompts: Prompt[]): Map<string, LintF
 	return result;
 }
 
+/**
+ * L8: library-wide (needs the full path set, like L6). For every chain note
+ * (prompt.chain !== undefined) whose steps include one or more paths absent
+ * from the library, emits one warning finding listing the orphan steps.
+ */
+export function findChainOrphanFindings(prompts: Prompt[]): Map<string, LintFinding[]> {
+	const knownPaths = new Set(prompts.map((p) => p.path));
+	const result = new Map<string, LintFinding[]>();
+	for (const prompt of prompts) {
+		if (prompt.chain === undefined) continue;
+		const orphans = chainOrphanSteps(prompt.chain, knownPaths);
+		if (orphans.length === 0) continue;
+		result.set(prompt.path, [
+			{
+				ruleId: "L8",
+				severity: "warning",
+				message: `Chain references unresolved step(s): ${orphans.join(", ")}.`,
+			},
+		]);
+	}
+	return result;
+}
+
 /** Thin orchestrator: one result per prompt, unfiltered (read-only, FR-16.3). */
 export function lintLibrary(prompts: Prompt[], getBody: (path: string) => string): PromptLintResult[] {
 	const duplicates = findDuplicateTitleFindings(prompts);
+	const orphans = findChainOrphanFindings(prompts);
 	return prompts.map((prompt) => ({
 		path: prompt.path,
 		title: prompt.title,
-		findings: [...lintPrompt(prompt, getBody(prompt.path)), ...(duplicates.get(prompt.path) ?? [])],
+		findings: [
+			...lintPrompt(prompt, getBody(prompt.path)),
+			...(duplicates.get(prompt.path) ?? []),
+			...(orphans.get(prompt.path) ?? []),
+		],
 	}));
 }

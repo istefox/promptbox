@@ -1,5 +1,6 @@
 import { ItemView, Menu, Notice, setIcon, setTooltip, type WorkspaceLeaf } from "obsidian";
 import { buildCardMenuEntries, type CardMenuActionKey } from "../domain/card-menu";
+import { chainOrphanSteps, isSaveableChain } from "../domain/chains";
 import { lintLibrary, type PromptLintResult } from "../domain/lint";
 import { emptyQuery, runQuery, type LibraryQuery } from "../domain/query";
 import { titleMatchRanges } from "../domain/search";
@@ -7,6 +8,7 @@ import { usageRecencyMap } from "../domain/usage";
 import type { Prompt } from "../domain/prompt";
 import type PromptboxPlugin from "../main";
 import { deletePrompt, setFavorite } from "../storage/prompt-writer";
+import { ChainWizardModal } from "./chain-wizard-modal";
 import { ConfirmModal } from "./confirm-modal";
 import { copyRaw, copyWithVariables } from "./copy";
 import { ImportModal } from "./import-modal";
@@ -32,6 +34,8 @@ export class PromptboxLibraryView extends ItemView {
 	private unsubscribe: (() => void) | null = null;
 	/** Pending long-press timers, cleared on every render pass so a mid-press re-render can't fire a menu against a detached card (issue #33). */
 	private readonly cardMenuTimers = new Set<number>();
+	/** All known prompt paths, lazily rebuilt per render() pass; see getKnownPaths(). */
+	private knownPathsCache: Set<string> | null = null;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -106,6 +110,7 @@ export class PromptboxLibraryView extends ItemView {
 		this.countEl.setText(`${results.length} of ${index.size} prompt(s)`);
 		for (const timer of this.cardMenuTimers) window.clearTimeout(timer);
 		this.cardMenuTimers.clear();
+		this.knownPathsCache = null;
 		this.listEl.empty();
 		if (results.length === 0) {
 			this.renderEmptyState(index.size);
@@ -145,7 +150,8 @@ export class PromptboxLibraryView extends ItemView {
 			const badge = header.createSpan({ cls: "promptbox-item__warning" });
 			setIcon(badge, "alert-triangle");
 			badge.setAttribute("aria-label", `Lint warnings: ${warningFindings.map((f) => f.message).join("; ")}`);
-			badge.addEventListener("click", () => {
+			badge.addEventListener("click", (evt) => {
+				evt.stopPropagation();
 				new LintModal(this.app, [...lintByPath.values()], { scopedToPath: prompt.path }).open();
 			});
 		}
@@ -153,17 +159,33 @@ export class PromptboxLibraryView extends ItemView {
 			header.createSpan({ text: "★".repeat(prompt.quality), cls: "promptbox-item__quality" });
 		}
 		const actions = header.createDiv({ cls: "promptbox-item__actions" });
-		this.addItemAction(actions, "braces", "Copy with variables", () => this.doCopyWithVariables(prompt));
-		this.addItemAction(actions, "clipboard-copy", "Copy raw", () => this.doCopyRaw(prompt));
+		if (prompt.chain !== undefined) {
+			const canRun = this.canRunChain(prompt);
+			this.addItemAction(actions, "workflow", canRun ? "Run chain" : "Edit chain", () =>
+				this.openChainCard(prompt),
+			);
+		} else {
+			this.addItemAction(actions, "braces", "Copy with variables", () => this.doCopyWithVariables(prompt));
+			this.addItemAction(actions, "clipboard-copy", "Copy raw", () => this.doCopyRaw(prompt));
+		}
 		this.addItemAction(actions, "pencil", "Edit metadata", () => this.plugin.openEditModal(prompt.path));
 		this.addItemAction(actions, "file-text", "Open as note", () => {
 			void this.openAsNote(prompt.path);
 		});
 		this.addItemAction(actions, "trash-2", "Delete", () => this.confirmDelete(prompt));
 
-		const preview = bodyPreview(this.plugin.index.getBody(prompt.path));
-		if (preview !== "") {
-			item.createDiv({ text: preview, cls: "promptbox-item__body" });
+		if (prompt.chain !== undefined) {
+			this.renderChainBadge(item, prompt);
+			item.addClass("promptbox-item--chain");
+			item.addEventListener("click", (evt) => {
+				if ((evt.target as HTMLElement).closest("button")) return;
+				this.openChainCard(prompt);
+			});
+		} else {
+			const preview = bodyPreview(this.plugin.index.getBody(prompt.path));
+			if (preview !== "") {
+				item.createDiv({ text: preview, cls: "promptbox-item__body" });
+			}
 		}
 
 		const meta = item.createDiv({ cls: "promptbox-item__meta" });
@@ -273,7 +295,7 @@ export class PromptboxLibraryView extends ItemView {
 
 	private openCardMenu(prompt: Prompt, show: (menu: Menu) => void): void {
 		const menu = new Menu();
-		for (const entry of buildCardMenuEntries(prompt)) {
+		for (const entry of buildCardMenuEntries(prompt, this.canRunChain(prompt))) {
 			if (entry.separatorBefore) menu.addSeparator();
 			menu.addItem((item) => {
 				item.setTitle(entry.label);
@@ -292,6 +314,9 @@ export class PromptboxLibraryView extends ItemView {
 			case "copy-raw":
 				this.doCopyRaw(prompt);
 				return;
+			case "open-chain":
+				this.openChainCard(prompt);
+				return;
 			case "edit-metadata":
 				this.plugin.openEditModal(prompt.path);
 				return;
@@ -304,6 +329,40 @@ export class PromptboxLibraryView extends ItemView {
 			case "delete":
 				this.confirmDelete(prompt);
 				return;
+		}
+	}
+
+	/** "Chain · N steps" (or "0/1 steps" for a sub-2-step/hand-edited chain, SPEC §4). */
+	private renderChainBadge(item: HTMLElement, prompt: Prompt): void {
+		const n = prompt.chain?.length ?? 0;
+		const badge = item.createDiv({ cls: "promptbox-item__chain-badge" });
+		badge.setText(`Chain · ${n} step${n === 1 ? "" : "s"}`);
+	}
+
+	/** True when the chain meets the 2-step minimum and is not fully orphaned (SPEC §4, edge cases). */
+	private canRunChain(prompt: Prompt): boolean {
+		const chain = prompt.chain;
+		if (chain === undefined || !isSaveableChain(chain)) return false;
+		return chainOrphanSteps(chain, this.getKnownPaths()).length < chain.length;
+	}
+
+	/** Lazily built, cached for the lifetime of one render() pass (invalidated at its start)
+	 *  so a full-list render does O(totalPrompts) work once instead of rebuilding this Set for
+	 *  every visible chain card. */
+	private getKnownPaths(): Set<string> {
+		if (!this.knownPathsCache) {
+			this.knownPathsCache = new Set(this.plugin.index.getAll().map((p) => p.path));
+		}
+		return this.knownPathsCache;
+	}
+
+	/** Routes a chain card's primary action: the wizard when runnable, the edit modal otherwise. */
+	private openChainCard(prompt: Prompt): void {
+		if (prompt.chain === undefined) return;
+		if (this.canRunChain(prompt)) {
+			new ChainWizardModal(this.app, this.plugin.chainWizardDeps(), prompt.title, prompt.chain).open();
+		} else {
+			this.plugin.openChainModal(prompt.path);
 		}
 	}
 
