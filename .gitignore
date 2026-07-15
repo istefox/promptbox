@@ -162,3 +162,21 @@ node_modules/
 .claude/ui-polish-backlog.md
 .claude/.triage-fix-last-main.json
 .claude/.triage-fix-last-fix_strip-wrapping-code-fence.json
+
+# Internal process / AI-workflow docs (kept locally, not published)
+/BRAINSTORM.md
+/PROJECT.md
+/PROJECT_BRIEF.md
+/SPEC.md
+docs/spec.md
+docs/spec-community.md
+docs/project.md
+docs/competitive-analysis.md
+docs/RUNBOOK-nightly-autopilot.md
+docs/20260702_Promptbox_RicercaPlugin_v1.md
+docs/smoke-test-checklist.md
+docs/plans/
+docs/manifests/
+docs/clean-report/
+docs/adr/*.md
+!docs/adr/README.md
