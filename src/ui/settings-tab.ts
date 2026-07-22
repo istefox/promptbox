@@ -1,4 +1,5 @@
 import { Notice, PluginSettingTab, setIcon, Setting, type App } from "obsidian";
+import { isReservedTypeKeyCollision, isValidTypeKeyFormat } from "../domain/prompt";
 import { findProfileIndex } from "../domain/variable-profiles";
 import type PromptboxPlugin from "../main";
 import { ConfirmModal } from "./confirm-modal";
@@ -7,6 +8,7 @@ import { FolderSuggest } from "./suggest";
 /** Plugin settings tab (FR-8). */
 export class PromptboxSettingTab extends PluginSettingTab {
 	private folderDebounce: number | undefined;
+	private typeKeyDebounce: number | undefined;
 
 	constructor(
 		app: App,
@@ -45,6 +47,31 @@ export class PromptboxSettingTab extends PluginSettingTab {
 				d.setValue(this.plugin.settings.defaultType).onChange((v) => {
 					this.plugin.settings.defaultType = v;
 					void this.plugin.saveSettings();
+				});
+			});
+
+		this.iconRow("key-round", "Type frontmatter key")
+			.setDesc(
+				"Frontmatter key Promptbox uses for a prompt's type. Change it to avoid a clash with another " +
+					"vault-wide taxonomy using the same key. Existing notes keep their old key; a lint warning flags them.",
+			)
+			.addText((t) => {
+				t.setValue(this.plugin.settings.typeKey);
+				t.onChange((value) => {
+					window.clearTimeout(this.typeKeyDebounce);
+					this.typeKeyDebounce = window.setTimeout(() => {
+						const trimmed = value.trim();
+						if (trimmed === "" || trimmed === this.plugin.settings.typeKey) return;
+						if (!isValidTypeKeyFormat(trimmed)) {
+							new Notice(`Promptbox: "${trimmed}" is not a valid frontmatter key.`);
+							return;
+						}
+						if (isReservedTypeKeyCollision(trimmed)) {
+							new Notice(`Promptbox: "${trimmed}" is already used by another Promptbox field.`);
+							return;
+						}
+						this.plugin.setTypeKey(trimmed);
+					}, 500);
 				});
 			});
 

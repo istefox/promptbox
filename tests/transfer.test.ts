@@ -14,7 +14,7 @@ import {
 } from "../src/domain/transfer";
 
 function prompt(path: string, fm: Record<string, unknown>): Prompt {
-	return normalizePrompt(fm, { path, filename: path, today: "2026-07-02" });
+	return normalizePrompt(fm, { path, filename: path, today: "2026-07-02", typeKey: "type", defaultType: "task" });
 }
 
 const PROMPTS = [

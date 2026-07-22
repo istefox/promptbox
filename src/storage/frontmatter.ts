@@ -13,12 +13,14 @@ export function todayISO(now = new Date()): string {
  * Reads a prompt through Obsidian's metadata cache — never hand-parsed YAML (ADR-0001).
  * A file without (or with broken) frontmatter still yields a usable Prompt with warnings.
  */
-export function readPromptFromCache(app: App, file: TFile): Prompt {
+export function readPromptFromCache(app: App, file: TFile, typeKey: string, defaultType: string): Prompt {
 	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
 	return normalizePrompt(frontmatter, {
 		path: file.path,
 		filename: file.basename,
 		today: todayISO(),
+		typeKey,
+		defaultType,
 	});
 }
 

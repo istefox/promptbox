@@ -4,8 +4,8 @@ import { normalizePrompt, type Prompt } from "../src/domain/prompt";
 
 const CTX_TODAY = "2026-07-03";
 
-function p(path: string, fm: Record<string, unknown>): Prompt {
-	return normalizePrompt(fm, { path, filename: path, today: CTX_TODAY });
+function p(path: string, fm: Record<string, unknown>, typeKey = "type"): Prompt {
+	return normalizePrompt(fm, { path, filename: path, today: CTX_TODAY, typeKey, defaultType: "task" });
 }
 
 const BODIES: Record<string, string> = {
@@ -133,13 +133,13 @@ describe("findChainOrphanFindings (L8)", () => {
 
 describe("lintLibrary", () => {
 	it("returns [] for an empty library without throwing", () => {
-		expect(lintLibrary([], () => "")).toEqual([]);
+		expect(lintLibrary([], () => "", "type", [])).toEqual([]);
 	});
 
 	it("returns one result per prompt, in order, well-formed ones with findings: []", () => {
 		const broken = p("b.md", { title: "Broken" });
 		const bodies: Record<string, string> = { "a.md": getBody("a.md"), "b.md": "" };
-		const results = lintLibrary([WELL_FORMED, broken], (path) => bodies[path] ?? "");
+		const results = lintLibrary([WELL_FORMED, broken], (path) => bodies[path] ?? "", "type", []);
 		expect(results.map((r) => r.path)).toEqual(["a.md", "b.md"]);
 		expect(results[0]?.findings).toEqual([]);
 		expect(results[1]?.findings.length).toBeGreaterThan(0);
@@ -148,7 +148,7 @@ describe("lintLibrary", () => {
 	it("merges L6 findings into the per-prompt result by path", () => {
 		const a = p("a.md", { title: "draft email", category: "dev", use_case: "u" });
 		const b = p("b.md", { title: "Draft Email", category: "dev", use_case: "u" });
-		const results = lintLibrary([a, b], () => "body");
+		const results = lintLibrary([a, b], () => "body", "type", []);
 		expect(results.find((r) => r.path === "a.md")?.findings.some((f) => f.ruleId === "L6")).toBe(true);
 		expect(results.find((r) => r.path === "b.md")?.findings.some((f) => f.ruleId === "L6")).toBe(true);
 	});
@@ -156,9 +156,38 @@ describe("lintLibrary", () => {
 	it("merges L8 alongside L6 duplicate findings for the same path without dropping either", () => {
 		const a = p("a.md", { title: "draft email", category: "dev", use_case: "u", chain: ["missing.md"] });
 		const b = p("b.md", { title: "Draft Email", category: "dev", use_case: "u" });
-		const results = lintLibrary([a, b], () => "body");
+		const results = lintLibrary([a, b], () => "body", "type", []);
 		const findingsA = results.find((r) => r.path === "a.md")?.findings ?? [];
 		expect(findingsA.some((f) => f.ruleId === "L6")).toBe(true);
 		expect(findingsA.some((f) => f.ruleId === "L8")).toBe(true);
+	});
+});
+
+describe("L9 — orphaned type key after rename (issue #46)", () => {
+	it("fires when a prompt has a value under a previous key and nothing under the current one", () => {
+		const orphaned = p("a.md", { title: "A", type: "task" }, "prompt_type");
+		const results = lintLibrary([orphaned], () => "body", "prompt_type", ["type"]);
+		const l9 = results[0]?.findings.find((f) => f.ruleId === "L9");
+		expect(l9?.severity).toBe("warning");
+		expect(l9?.message).toContain("type");
+		expect(l9?.message).toContain("prompt_type");
+	});
+
+	it("does not fire when previousTypeKeys is empty", () => {
+		const orphaned = p("a.md", { title: "A", type: "task" }, "prompt_type");
+		const results = lintLibrary([orphaned], () => "body", "prompt_type", []);
+		expect(results[0]?.findings.some((f) => f.ruleId === "L9")).toBe(false);
+	});
+
+	it("does not fire when the current key already has a value", () => {
+		const fine = p("a.md", { title: "A", prompt_type: "task", type: "task" }, "prompt_type");
+		const results = lintLibrary([fine], () => "body", "prompt_type", ["type"]);
+		expect(results[0]?.findings.some((f) => f.ruleId === "L9")).toBe(false);
+	});
+
+	it("does not fire when the previous key's value is empty or whitespace", () => {
+		const blankOld = p("a.md", { title: "A", type: "   " }, "prompt_type");
+		const results = lintLibrary([blankOld], () => "body", "prompt_type", ["type"]);
+		expect(results[0]?.findings.some((f) => f.ruleId === "L9")).toBe(false);
 	});
 });

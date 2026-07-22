@@ -156,7 +156,13 @@ export async function runImport(
  * read time is silently dropped — `runImport` already falls back to creating
  * in that same situation.
  */
-export async function buildOverwritePreview(app: App, folder: string, doc: ExportDoc): Promise<ImportDiff[]> {
+export async function buildOverwritePreview(
+	app: App,
+	folder: string,
+	doc: ExportDoc,
+	typeKey: string,
+	defaultType: string,
+): Promise<ImportDiff[]> {
 	const prefix = folder === "" ? "" : normalizePath(folder) + "/";
 	const existing = listExistingRelativePaths(app, folder);
 	const diffs: ImportDiff[] = [];
@@ -165,7 +171,7 @@ export async function buildOverwritePreview(app: App, folder: string, doc: Expor
 		const fullPath = normalizePath(prefix + action.targetPath);
 		const file = app.vault.getFileByPath(fullPath);
 		if (!file) continue;
-		const existingPrompt = readPromptFromCache(app, file);
+		const existingPrompt = readPromptFromCache(app, file, typeKey, defaultType);
 		const existingBody = stripFrontmatter(await app.vault.cachedRead(file));
 		const existingExported = toExportedPrompt(existingPrompt, existingBody, action.targetPath);
 		diffs.push(diffImportEntry(existingExported, action.entry));

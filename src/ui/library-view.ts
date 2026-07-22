@@ -116,7 +116,14 @@ export class PromptboxLibraryView extends ItemView {
 			this.renderEmptyState(index.size);
 			return;
 		}
-		const lintByPath = new Map(lintLibrary(index.getAll(), (p) => index.getBody(p)).map((r) => [r.path, r]));
+		const lintByPath = new Map(
+			lintLibrary(
+				index.getAll(),
+				(p) => index.getBody(p),
+				this.plugin.settings.typeKey,
+				this.plugin.settings.previousTypeKeys,
+			).map((r) => [r.path, r]),
+		);
 		for (const prompt of results) this.renderItem(prompt, lintByPath);
 	}
 

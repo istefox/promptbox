@@ -411,11 +411,11 @@ export class PromptModal extends Modal {
 		}
 		try {
 			if (this.mode.kind === "create") {
-				const file = await createPrompt(this.app, this.deps.folder, this.draft);
+				const file = await createPrompt(this.app, this.deps.folder, this.draft, this.deps.settings.typeKey);
 				new Notice(`Prompt created: ${file.basename}`);
 				this.onSaved?.(file);
 			} else {
-				await updatePrompt(this.app, this.mode.file, this.draft);
+				await updatePrompt(this.app, this.mode.file, this.draft, this.deps.settings.typeKey);
 				new Notice("Prompt metadata saved.");
 				this.onSaved?.(this.mode.file);
 			}

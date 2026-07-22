@@ -3,7 +3,7 @@ import { findConflictingVariableNames, hasMalformedPlaceholders } from "./placeh
 import type { Prompt } from "./prompt";
 import { slugify } from "./slug";
 
-export type LintRuleId = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7" | "L8";
+export type LintRuleId = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7" | "L8" | "L9";
 
 export interface LintFinding {
 	ruleId: LintRuleId;
@@ -129,10 +129,50 @@ export function findChainOrphanFindings(prompts: Prompt[]): Map<string, LintFind
 	return result;
 }
 
+/** True for any present value except an empty/whitespace-only string. */
+function hasOrphanValue(value: unknown): boolean {
+	if (value === undefined || value === null) return false;
+	if (typeof value === "string") return value.trim() !== "";
+	return true;
+}
+
+/**
+ * L9: flags a prompt that has a value under a previously configured type key but nothing
+ * under the current one (issue #46) — a note orphaned by a `typeKey` rename. Relies on
+ * `normalizePrompt` already routing any non-current key into `prompt.custom`, and on
+ * `readString`'s `missing <key>` warning to detect the current key's absence.
+ */
+function findOrphanedTypeKeyFindings(
+	prompts: Prompt[],
+	typeKey: string,
+	previousTypeKeys: string[],
+): Map<string, LintFinding[]> {
+	const result = new Map<string, LintFinding[]>();
+	for (const prompt of prompts) {
+		if (!prompt.warnings.includes(`missing ${typeKey}`)) continue;
+		const orphanKey = previousTypeKeys.find((key) => key !== typeKey && hasOrphanValue(prompt.custom[key]));
+		if (orphanKey === undefined) continue;
+		result.set(prompt.path, [
+			{
+				ruleId: "L9",
+				severity: "warning",
+				message: `Type value found under previous key "${orphanKey}"; current key "${typeKey}" is missing.`,
+			},
+		]);
+	}
+	return result;
+}
+
 /** Thin orchestrator: one result per prompt, unfiltered (read-only, FR-16.3). */
-export function lintLibrary(prompts: Prompt[], getBody: (path: string) => string): PromptLintResult[] {
+export function lintLibrary(
+	prompts: Prompt[],
+	getBody: (path: string) => string,
+	typeKey: string,
+	previousTypeKeys: string[],
+): PromptLintResult[] {
 	const duplicates = findDuplicateTitleFindings(prompts);
 	const orphans = findChainOrphanFindings(prompts);
+	const orphanedTypeKeys = findOrphanedTypeKeyFindings(prompts, typeKey, previousTypeKeys);
 	return prompts.map((prompt) => ({
 		path: prompt.path,
 		title: prompt.title,
@@ -140,6 +180,7 @@ export function lintLibrary(prompts: Prompt[], getBody: (path: string) => string
 			...lintPrompt(prompt, getBody(prompt.path)),
 			...(duplicates.get(prompt.path) ?? []),
 			...(orphans.get(prompt.path) ?? []),
+			...(orphanedTypeKeys.get(prompt.path) ?? []),
 		],
 	}));
 }
