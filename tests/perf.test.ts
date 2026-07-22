@@ -23,7 +23,7 @@ function fixture(count: number): { prompts: Prompt[]; bodies: Map<string, string
 					created: "2026-01-01",
 					updated: `2026-06-${String((i % 28) + 1).padStart(2, "0")}`,
 				},
-				{ path, filename: `p-${i}`, today: "2026-07-02" },
+				{ path, filename: `p-${i}`, today: "2026-07-02", typeKey: "type", defaultType: "task" },
 			),
 		);
 		// ~120 words per body, realistic order of magnitude for a prompt note

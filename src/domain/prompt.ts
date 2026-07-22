@@ -30,11 +30,15 @@ export interface NormalizeContext {
 	filename: string;
 	/** Today as YYYY-MM-DD, fallback for missing/invalid dates. */
 	today: string;
+	/** Configured frontmatter key for a prompt's type (issue #46). */
+	typeKey: string;
+	/** Fallback type value when `typeKey` is missing or invalid. */
+	defaultType: string;
 }
 
-const KNOWN_FIELDS = new Set([
+/** Fields Promptbox always reserves, independent of the configured type key. */
+const STATIC_KNOWN_FIELDS = [
 	"title",
-	"type",
 	"category",
 	"tags",
 	"quality",
@@ -45,7 +49,17 @@ const KNOWN_FIELDS = new Set([
 	"updated",
 	"favorite",
 	"chain",
-]);
+];
+
+/** True when `key` would collide with a field Promptbox always reserves (issue #46). */
+export function isReservedTypeKeyCollision(key: string): boolean {
+	return STATIC_KNOWN_FIELDS.includes(key);
+}
+
+/** Simple YAML-identifier check: letters, digits, `_`, `-`; must start with a letter or `_`. */
+export function isValidTypeKeyFormat(key: string): boolean {
+	return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(key);
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -158,15 +172,16 @@ export function normalizePrompt(rawInput: unknown, ctx: NormalizeContext): Promp
 		version = "1.0";
 	}
 
+	const knownFields = new Set([...STATIC_KNOWN_FIELDS, ctx.typeKey]);
 	const custom: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(raw)) {
-		if (!KNOWN_FIELDS.has(key)) custom[key] = value;
+		if (!knownFields.has(key)) custom[key] = value;
 	}
 
 	return {
 		path: ctx.path,
 		title: readString(raw, "title", ctx.filename, true, warnings),
-		type: readString(raw, "type", "task", true, warnings),
+		type: readString(raw, ctx.typeKey, ctx.defaultType, true, warnings),
 		category: readString(raw, "category", "", false, warnings),
 		tags: readTags(raw["tags"], warnings),
 		quality: readQuality(raw["quality"], warnings),

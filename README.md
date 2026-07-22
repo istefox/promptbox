@@ -32,7 +32,7 @@ A local-first library of AI prompts for Obsidian. Each prompt is a plain Markdow
 
 ### Keeping the library healthy
 
-- A linter flags common problems on demand: malformed or conflicting placeholder declarations, empty bodies, missing use case or category, and near-duplicate titles. It only reports, it never rewrites a note.
+- A linter flags common problems on demand: malformed or conflicting placeholder declarations, empty bodies, missing use case or category, near-duplicate titles, and notes that lost their type value after a type-key rename. It only reports, it never rewrites a note.
 - JSON export and import, with a per-conflict diff preview (old value versus new, field by field) before anything gets overwritten.
 - Curated packs bundle a set of prompts with pack-level metadata for sharing a themed collection as a single file; a plain export stays byte-identical for everyone else.
 - A read-only statistics modal reports library size, tag and category distribution, and orphaned references, computed on demand.
@@ -59,6 +59,7 @@ None ship with a default hotkey; assign them under Settings, Hotkeys.
 
 - **Prompts folder**: the vault folder that holds prompt notes (subfolders included). Changing it re-indexes immediately.
 - **Default type for new prompts**: preselected in the create modal.
+- **Type frontmatter key**: the frontmatter key used for a prompt's type, default `type`. Change it to avoid a clash with another taxonomy using the same key; existing notes keep their old key until edited.
 - **Type and category values**: add, rename, reorder, or remove; these feed the modal dropdowns and the library filters. Removing a value in use never touches existing notes, only the dropdown list.
 - **Variable profiles**: rename or delete profiles saved from the copy-with-variables form.
 

@@ -50,7 +50,7 @@ export default class PromptboxPlugin extends Plugin {
 				listMarkdownFiles: () => this.app.vault.getMarkdownFiles().map((f) => f.path),
 				readPrompt: (path) => {
 					const file = this.app.vault.getFileByPath(path);
-					return file ? readPromptFromCache(this.app, file) : null;
+					return file ? readPromptFromCache(this.app, file, this.settings.typeKey, this.settings.defaultType) : null;
 				},
 				readBody: async (path) => {
 					const file = this.app.vault.getFileByPath(path);
@@ -145,7 +145,15 @@ export default class PromptboxPlugin extends Plugin {
 			id: "lint-library",
 			name: "Lint library",
 			callback: () =>
-				new LintModal(this.app, lintLibrary(this.index.getAll(), (p) => this.index.getBody(p))).open(),
+				new LintModal(
+					this.app,
+					lintLibrary(
+						this.index.getAll(),
+						(p) => this.index.getBody(p),
+						this.settings.typeKey,
+						this.settings.previousTypeKeys,
+					),
+				).open(),
 		});
 		this.addCommand({
 			id: "library-statistics",
@@ -371,7 +379,9 @@ export default class PromptboxPlugin extends Plugin {
 
 	openEditModal(path: string): void {
 		const file = this.app.vault.getFileByPath(path);
-		const prompt = this.index.get(path) ?? (file ? readPromptFromCache(this.app, file) : undefined);
+		const prompt =
+			this.index.get(path) ??
+			(file ? readPromptFromCache(this.app, file, this.settings.typeKey, this.settings.defaultType) : undefined);
 		if (!file || !prompt) {
 			new Notice("Promptbox: prompt not found.");
 			return;
@@ -398,7 +408,9 @@ export default class PromptboxPlugin extends Plugin {
 			return;
 		}
 		const file = this.app.vault.getFileByPath(path);
-		const prompt = this.index.get(path) ?? (file ? readPromptFromCache(this.app, file) : undefined);
+		const prompt =
+			this.index.get(path) ??
+			(file ? readPromptFromCache(this.app, file, this.settings.typeKey, this.settings.defaultType) : undefined);
 		if (!file || !prompt) {
 			new Notice("Promptbox: prompt not found.");
 			return;
@@ -415,5 +427,16 @@ export default class PromptboxPlugin extends Plugin {
 		this.settings.promptsFolder = folder;
 		void this.saveSettings();
 		this.index.setFolder(folder);
+	}
+
+	/** Format/collision validation happens in the settings-tab caller (issue #46). */
+	setTypeKey(key: string): void {
+		if (key === this.settings.typeKey) return;
+		const previous = this.settings.typeKey;
+		this.settings.typeKey = key;
+		this.settings.previousTypeKeys = this.settings.previousTypeKeys.filter((k) => k !== key);
+		if (!this.settings.previousTypeKeys.includes(previous)) this.settings.previousTypeKeys.push(previous);
+		void this.saveSettings();
+		void this.index.scan();
 	}
 }

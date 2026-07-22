@@ -135,7 +135,13 @@ export class ImportModal extends Modal {
 		}
 		const folder = this.plugin.settings.promptsFolder;
 		if (this.policy === "overwrite") {
-			const diffs = await buildOverwritePreview(this.app, folder, result.doc);
+			const diffs = await buildOverwritePreview(
+				this.app,
+				folder,
+				result.doc,
+				this.plugin.settings.typeKey,
+				this.plugin.settings.defaultType,
+			);
 			if (diffs.length > 0) {
 				new ImportPreviewModal(this.app, diffs, () => void this.runAndReport(folder, result.doc, this.policy)).open();
 				return;

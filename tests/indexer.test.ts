@@ -3,7 +3,10 @@ import { normalizePrompt, type Prompt } from "../src/domain/prompt";
 import { PromptIndex, type IndexerHost } from "../src/storage/indexer";
 
 function makePrompt(path: string, title = path): Prompt {
-	return normalizePrompt({ title }, { path, filename: title, today: "2026-07-02" });
+	return normalizePrompt(
+		{ title },
+		{ path, filename: title, today: "2026-07-02", typeKey: "type", defaultType: "task" },
+	);
 }
 
 class FakeVault implements IndexerHost {

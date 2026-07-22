@@ -15,7 +15,7 @@ const FULL: PromptDraft = {
 
 describe("draftToFrontmatter", () => {
 	it("maps all fields and trims strings", () => {
-		expect(draftToFrontmatter(FULL)).toEqual({
+		expect(draftToFrontmatter(FULL, "type")).toEqual({
 			title: "Review PR",
 			type: "task",
 			category: "dev",
@@ -28,14 +28,17 @@ describe("draftToFrontmatter", () => {
 	});
 
 	it("omits empty optionals and defaults version", () => {
-		const fm = draftToFrontmatter({
-			...FULL,
-			category: " ",
-			tags: [],
-			quality: undefined,
-			useCase: "",
-			version: "",
-		});
+		const fm = draftToFrontmatter(
+			{
+				...FULL,
+				category: " ",
+				tags: [],
+				quality: undefined,
+				useCase: "",
+				version: "",
+			},
+			"type",
+		);
 		expect(fm).toEqual({
 			title: "Review PR",
 			type: "task",
@@ -45,9 +48,15 @@ describe("draftToFrontmatter", () => {
 	});
 
 	it("copies the tags array defensively", () => {
-		const fm = draftToFrontmatter(FULL);
+		const fm = draftToFrontmatter(FULL, "type");
 		(fm["tags"] as string[]).push("mutated");
 		expect(FULL.tags).toEqual(["code", "review"]);
+	});
+
+	it("writes under the configured key instead of the literal \"type\" (issue #46)", () => {
+		const fm = draftToFrontmatter(FULL, "prompt_type");
+		expect(fm["prompt_type"]).toBe("task");
+		expect(fm).not.toHaveProperty("type");
 	});
 });
 

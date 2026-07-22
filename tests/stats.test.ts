@@ -5,7 +5,7 @@ import { computeLibraryStats, type StatsTaxonomy } from "../src/domain/stats";
 const CTX_TODAY = "2026-07-03";
 
 function p(path: string, fm: Record<string, unknown>): Prompt {
-	return normalizePrompt(fm, { path, filename: path, today: CTX_TODAY });
+	return normalizePrompt(fm, { path, filename: path, today: CTX_TODAY, typeKey: "type", defaultType: "task" });
 }
 
 const TAXONOMY: StatsTaxonomy = {

@@ -165,17 +165,22 @@ export class ChainModal extends Modal {
 		}
 		try {
 			if (this.mode.kind === "create") {
-				const file = await createPrompt(this.app, this.deps.folder, {
-					title: this.title,
-					type: this.deps.settings.defaultType,
-					category: "",
-					tags: [],
-					quality: undefined,
-					useCase: "",
-					visibility: "private",
-					version: "1.0",
-					body: "",
-				});
+				const file = await createPrompt(
+					this.app,
+					this.deps.folder,
+					{
+						title: this.title,
+						type: this.deps.settings.defaultType,
+						category: "",
+						tags: [],
+						quality: undefined,
+						useCase: "",
+						visibility: "private",
+						version: "1.0",
+						body: "",
+					},
+					this.deps.settings.typeKey,
+				);
 				await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
 					fm["chain"] = [...this.steps];
 				});

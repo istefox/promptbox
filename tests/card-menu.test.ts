@@ -5,7 +5,7 @@ import { normalizePrompt, type Prompt } from "../src/domain/prompt";
 const CTX_TODAY = "2026-07-11";
 
 function p(fm: Record<string, unknown>): Prompt {
-	return normalizePrompt(fm, { path: "a.md", filename: "a.md", today: CTX_TODAY });
+	return normalizePrompt(fm, { path: "a.md", filename: "a.md", today: CTX_TODAY, typeKey: "type", defaultType: "task" });
 }
 
 describe("buildCardMenuEntries (issue #33)", () => {

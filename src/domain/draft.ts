@@ -19,11 +19,11 @@ export interface PromptDraft {
  * notes stay minimal; required fields are always present. Dates are stamped by
  * the writer, unknown custom fields are preserved by the writer's merge.
  */
-export function draftToFrontmatter(draft: PromptDraft): Record<string, unknown> {
+export function draftToFrontmatter(draft: PromptDraft, typeKey: string): Record<string, unknown> {
 	const fm: Record<string, unknown> = {
 		title: draft.title.trim(),
-		type: draft.type,
 	};
+	fm[typeKey] = draft.type;
 	if (draft.category.trim() !== "") fm["category"] = draft.category.trim();
 	if (draft.tags.length > 0) fm["tags"] = [...draft.tags];
 	if (draft.quality !== undefined) fm["quality"] = draft.quality;

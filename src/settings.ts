@@ -1,3 +1,4 @@
+import { isReservedTypeKeyCollision, isValidTypeKeyFormat } from "./domain/prompt";
 import { normalizeProfiles, type VariableProfile } from "./domain/variable-profiles";
 
 export interface PromptboxSettings {
@@ -6,6 +7,10 @@ export interface PromptboxSettings {
 	typeValues: string[];
 	categoryValues: string[];
 	defaultType: string;
+	/** Frontmatter key used for a prompt's type (issue #46); default "type". */
+	typeKey: string;
+	/** Keys `typeKey` was renamed from, append-only, deduplicated; feeds lint rule L9. */
+	previousTypeKeys: string[];
 	profiles: VariableProfile[];
 }
 
@@ -15,8 +20,20 @@ export const DEFAULT_SETTINGS: PromptboxSettings = {
 	typeValues: ["system", "task", "agent", "snippet"],
 	categoryValues: [],
 	defaultType: "task",
+	typeKey: "type",
+	previousTypeKeys: [],
 	profiles: [],
 };
+
+/** Guards against a corrupted/hand-edited data.json aliasing typeKey onto a reserved field (issue #46, NFR-8). */
+function validTypeKey(value: unknown): string {
+	if (typeof value !== "string") return DEFAULT_SETTINGS.typeKey;
+	const trimmed = value.trim();
+	if (trimmed === "" || !isValidTypeKeyFormat(trimmed) || isReservedTypeKeyCollision(trimmed)) {
+		return DEFAULT_SETTINGS.typeKey;
+	}
+	return trimmed;
+}
 
 function stringArray(value: unknown, fallback: string[]): string[] {
 	if (!Array.isArray(value)) return [...fallback];
@@ -31,6 +48,7 @@ export function mergeSettings(raw: unknown): PromptboxSettings {
 			...DEFAULT_SETTINGS,
 			typeValues: [...DEFAULT_SETTINGS.typeValues],
 			categoryValues: [],
+			previousTypeKeys: [],
 			profiles: [],
 		};
 	}
@@ -48,6 +66,8 @@ export function mergeSettings(raw: unknown): PromptboxSettings {
 			typeof r["defaultType"] === "string" && r["defaultType"].trim() !== ""
 				? r["defaultType"].trim()
 				: DEFAULT_SETTINGS.defaultType,
+		typeKey: validTypeKey(r["typeKey"]),
+		previousTypeKeys: [...new Set(stringArray(r["previousTypeKeys"], []))],
 		profiles: normalizeProfiles(r["profiles"]),
 	};
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { isCustomValue, normalizePrompt } from "../src/domain/prompt";
+import { isCustomValue, isReservedTypeKeyCollision, isValidTypeKeyFormat, normalizePrompt } from "../src/domain/prompt";
 
-const CTX = { path: "Prompts/x.md", filename: "x", today: "2026-07-02" };
+const CTX = { path: "Prompts/x.md", filename: "x", today: "2026-07-02", typeKey: "type", defaultType: "task" };
 
 describe("normalizePrompt — happy path", () => {
 	it("maps a fully valid frontmatter", () => {
@@ -168,5 +168,60 @@ describe("chain (ADR-0018)", () => {
 		const baseline = normalizePrompt({ title: "t" }, CTX);
 		expect(p.chain).toEqual([]);
 		expect(p.warnings).toEqual(baseline.warnings);
+	});
+});
+
+describe("configurable type key (issue #46)", () => {
+	const CUSTOM_CTX = { ...CTX, typeKey: "prompt_type", defaultType: "note" };
+
+	it("reads the type value from the configured key instead of the literal \"type\"", () => {
+		const p = normalizePrompt({ title: "t", prompt_type: "agent" }, CUSTOM_CTX);
+		expect(p.type).toBe("agent");
+		expect(p.warnings).not.toContain("missing prompt_type");
+	});
+
+	it("falls back to the configured default, with a missing-<key> warning, when the key is absent", () => {
+		const p = normalizePrompt({ title: "t" }, CUSTOM_CTX);
+		expect(p.type).toBe("note");
+		expect(p.warnings).toContain("missing prompt_type");
+	});
+
+	it("routes a stale literal \"type\" value into custom once the key is renamed away from it", () => {
+		const p = normalizePrompt({ title: "t", type: "task" }, CUSTOM_CTX);
+		expect(p.custom).toEqual({ type: "task" });
+		expect(p.type).toBe("note");
+		expect(p.warnings).toContain("missing prompt_type");
+	});
+
+	it("keeps the default key's own value out of custom", () => {
+		const p = normalizePrompt({ title: "t", type: "task" }, CTX);
+		expect(p.custom).toEqual({});
+	});
+});
+
+describe("isValidTypeKeyFormat (issue #46)", () => {
+	it("accepts simple YAML identifiers", () => {
+		for (const key of ["type", "prompt_type", "promptbox-type", "_type", "a1"]) {
+			expect(isValidTypeKeyFormat(key)).toBe(true);
+		}
+	});
+
+	it("rejects empty strings, spaces, and keys starting with a digit or symbol", () => {
+		for (const key of ["", " ", "prompt type", "1type", "@type", "type!"]) {
+			expect(isValidTypeKeyFormat(key)).toBe(false);
+		}
+	});
+});
+
+describe("isReservedTypeKeyCollision (issue #46)", () => {
+	it("flags every other field Promptbox reserves", () => {
+		for (const key of ["title", "category", "tags", "quality", "use_case", "visibility", "version", "created", "updated", "favorite", "chain"]) {
+			expect(isReservedTypeKeyCollision(key)).toBe(true);
+		}
+	});
+
+	it("does not flag \"type\" itself or an unrelated custom key", () => {
+		expect(isReservedTypeKeyCollision("type")).toBe(false);
+		expect(isReservedTypeKeyCollision("prompt_type")).toBe(false);
 	});
 });
