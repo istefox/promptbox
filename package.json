@@ -1,6 +1,6 @@
 {
 	"name": "promptbox",
-	"version": "1.5.1",
+	"version": "1.5.2",
 	"description": "Obsidian plugin: local-first library of AI prompts with categorization, search, and quick reuse.",
 	"main": "main.js",
 	"private": true,
