@@ -1,6 +1,7 @@
 import { Modal, Notice, setIcon, setTooltip, Setting, type App, type TFile } from "obsidian";
 import { bumpVersion, type PromptDraft } from "../domain/draft";
 import type { PaletteEntry } from "../domain/placeholder-palette";
+import { isContextVariable, parsePlaceholders } from "../domain/placeholders";
 import { VISIBILITIES, type Prompt, type Visibility } from "../domain/prompt";
 import { relatedPrompts } from "../domain/related";
 import { suggestValues } from "../domain/suggestions";
@@ -22,6 +23,8 @@ export interface PromptModalDeps {
 	allPrompts: Prompt[];
 	/** Placeholder insertion catalog (FR-24.5/24.6), recomputed on every modal open. */
 	paletteCatalog: PaletteEntry[];
+	/** Current body for a given path, used to detect placeholders in edit mode (body itself is read-only here). */
+	getBody: (path: string) => string;
 	persistSettings: () => Promise<void>;
 	openFile?: (file: TFile) => void;
 }
@@ -39,6 +42,7 @@ function draftFrom(mode: PromptModalMode, settings: PromptboxSettings): PromptDr
 			visibility: p.visibility,
 			version: p.version,
 			body: "",
+			excludedPlaceholders: [...p.excludedPlaceholders],
 		};
 	}
 	return {
@@ -51,6 +55,7 @@ function draftFrom(mode: PromptModalMode, settings: PromptboxSettings): PromptDr
 		visibility: "private",
 		version: "1.0",
 		body: "",
+		excludedPlaceholders: [],
 	};
 }
 
@@ -66,6 +71,8 @@ export class PromptModal extends Modal {
 	private readonly draft: PromptDraft;
 	/** Related prompts, computed once at open time (FR-19.2); display() only reads it. */
 	private readonly related: Prompt[];
+	/** Body snapshot for placeholder detection: create mode reads the live draft instead. */
+	private readonly editModeBody: string;
 	private titleInput: HTMLInputElement | null = null;
 	/** Which taxonomy field is showing its inline "new value" row (backlog 13). */
 	private addingValueFor: "type" | "category" | null = null;
@@ -83,6 +90,15 @@ export class PromptModal extends Modal {
 		super(app);
 		this.draft = draftFrom(mode, deps.settings);
 		this.related = mode.kind === "edit" ? relatedPrompts(mode.prompt, deps.allPrompts, 5) : [];
+		this.editModeBody = mode.kind === "edit" ? deps.getBody(mode.file.path) : "";
+	}
+
+	/** Non-`@` placeholder names currently in the body, live in create mode, snapshotted in edit mode. */
+	private detectedPlaceholders(): string[] {
+		const body = this.mode.kind === "create" ? this.draft.body : this.editModeBody;
+		return parsePlaceholders(body)
+			.filter((v) => !isContextVariable(v.name))
+			.map((v) => v.name);
 	}
 
 	override onOpen(): void {
@@ -108,6 +124,7 @@ export class PromptModal extends Modal {
 			suggestionsDebounce = window.setTimeout(() => {
 				renderTagSuggestions();
 				renderCategorySuggestions();
+				renderExcludedSuggestions();
 			}, 150);
 		};
 
@@ -214,6 +231,69 @@ export class PromptModal extends Modal {
 			}
 		};
 		renderTagSuggestions();
+
+		// Excluded placeholders: chips inside a visible container + input, plus detected-in-body suggestions.
+		const excludedRow = this.fieldRow("eye-off", "Excluded placeholders").setDesc(
+			'Placeholders left untouched by "Copy with variables" (e.g. filled by the AI, not the user).',
+		);
+		const excludedBox = excludedRow.controlEl.createDiv({ cls: "promptbox-tags-box" });
+		const excludedChipsEl = excludedBox.createDiv({ cls: "promptbox-modal__chips" });
+		const renderExcludedChips = () => {
+			excludedChipsEl.empty();
+			if (this.draft.excludedPlaceholders.length === 0) {
+				excludedChipsEl.createSpan({ text: "None excluded", cls: "promptbox-tags-box__empty" });
+				return;
+			}
+			for (const name of this.draft.excludedPlaceholders) {
+				const chip = excludedChipsEl.createSpan({ text: name, cls: "promptbox-chip is-active" });
+				const remove = chip.createSpan({ text: "×", cls: "promptbox-chip__remove" });
+				remove.setAttribute("aria-label", `Remove ${name}`);
+				remove.addEventListener("click", () => {
+					this.draft.excludedPlaceholders = this.draft.excludedPlaceholders.filter((n) => n !== name);
+					renderExcludedChips();
+					renderExcludedSuggestions();
+				});
+			}
+		};
+		renderExcludedChips();
+		const excludedInput = excludedBox.createEl("input", {
+			type: "text",
+			placeholder: "Add placeholder name, press Enter",
+		});
+		const commitExcluded = () => {
+			const value = excludedInput.value.trim();
+			if (value !== "" && !this.draft.excludedPlaceholders.includes(value)) {
+				this.draft.excludedPlaceholders.push(value);
+				renderExcludedChips();
+				renderExcludedSuggestions();
+			}
+			excludedInput.value = "";
+		};
+		excludedInput.addEventListener("keydown", (e) => {
+			if (e.key === "Enter" || e.key === ",") {
+				e.preventDefault();
+				commitExcluded();
+			}
+		});
+		excludedInput.addEventListener("blur", commitExcluded);
+
+		const excludedSuggestionsEl = excludedRow.controlEl.createDiv({ cls: "promptbox-suggestions" });
+		const renderExcludedSuggestions = () => {
+			const detected = this.detectedPlaceholders().filter((n) => !this.draft.excludedPlaceholders.includes(n));
+			excludedSuggestionsEl.empty();
+			if (detected.length === 0) return;
+			excludedSuggestionsEl.createSpan({ text: "Detected in body", cls: "promptbox-filters__label" });
+			for (const name of detected) {
+				const chip = excludedSuggestionsEl.createSpan({ text: name, cls: "promptbox-chip" });
+				chip.addEventListener("click", () => {
+					if (this.draft.excludedPlaceholders.includes(name)) return;
+					this.draft.excludedPlaceholders.push(name);
+					renderExcludedChips();
+					renderExcludedSuggestions();
+				});
+			}
+		};
+		renderExcludedSuggestions();
 
 		this.fieldRow("star", "Quality").addDropdown((d) => {
 			d.addOption("", "(unset)");

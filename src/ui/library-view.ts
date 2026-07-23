@@ -378,6 +378,7 @@ export class PromptboxLibraryView extends ItemView {
 			this.app,
 			prompt.title,
 			this.plugin.index.getBody(prompt.path),
+			prompt.excludedPlaceholders,
 			prompt.path,
 			this.plugin.variableModalDeps(),
 			() => this.plugin.recordPromptUsage(prompt.path),

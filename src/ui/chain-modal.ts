@@ -178,6 +178,7 @@ export class ChainModal extends Modal {
 						visibility: "private",
 						version: "1.0",
 						body: "",
+						excludedPlaceholders: [],
 					},
 					this.deps.settings.typeKey,
 				);
