@@ -167,10 +167,11 @@ export class PromptModal extends Modal {
 			}
 		};
 		renderCategorySuggestions();
+		this.divider();
 
 		// Tags: chips inside a visible container + input with suggestions (FR-3.4)
-		const tagsRow = this.fieldRow("tags", "Tags");
-		const box = tagsRow.controlEl.createDiv({ cls: "promptbox-tags-box" });
+		const { wrapper: tagsWrapper } = this.chipFieldRow("tags", "Tags");
+		const box = tagsWrapper.createDiv({ cls: "promptbox-tags-box" });
 		const chipsEl = box.createDiv({ cls: "promptbox-modal__chips" });
 		const renderChips = () => {
 			chipsEl.empty();
@@ -209,7 +210,7 @@ export class PromptModal extends Modal {
 		});
 		input.addEventListener("blur", commit);
 
-		const tagSuggestionsEl = tagsRow.controlEl.createDiv({ cls: "promptbox-suggestions" });
+		const tagSuggestionsEl = tagsWrapper.createDiv({ cls: "promptbox-suggestions" });
 		const renderTagSuggestions = () => {
 			const suggestions = suggestValues(
 				{ title: this.draft.title, useCase: this.draft.useCase, body: this.draft.body },
@@ -233,10 +234,12 @@ export class PromptModal extends Modal {
 		renderTagSuggestions();
 
 		// Excluded placeholders: chips inside a visible container + input, plus detected-in-body suggestions.
-		const excludedRow = this.fieldRow("eye-off", "Excluded placeholders").setDesc(
+		const { wrapper: excludedWrapper } = this.chipFieldRow(
+			"eye-off",
+			"Excluded placeholders",
 			'Placeholders left untouched by "Copy with variables" (e.g. filled by the AI, not the user).',
 		);
-		const excludedBox = excludedRow.controlEl.createDiv({ cls: "promptbox-tags-box" });
+		const excludedBox = excludedWrapper.createDiv({ cls: "promptbox-tags-box" });
 		const excludedChipsEl = excludedBox.createDiv({ cls: "promptbox-modal__chips" });
 		const renderExcludedChips = () => {
 			excludedChipsEl.empty();
@@ -277,7 +280,7 @@ export class PromptModal extends Modal {
 		});
 		excludedInput.addEventListener("blur", commitExcluded);
 
-		const excludedSuggestionsEl = excludedRow.controlEl.createDiv({ cls: "promptbox-suggestions" });
+		const excludedSuggestionsEl = excludedWrapper.createDiv({ cls: "promptbox-suggestions" });
 		const renderExcludedSuggestions = () => {
 			const detected = this.detectedPlaceholders().filter((n) => !this.draft.excludedPlaceholders.includes(n));
 			excludedSuggestionsEl.empty();
@@ -294,6 +297,7 @@ export class PromptModal extends Modal {
 			}
 		};
 		renderExcludedSuggestions();
+		this.divider();
 
 		this.fieldRow("star", "Quality").addDropdown((d) => {
 			d.addOption("", "(unset)");
@@ -336,6 +340,7 @@ export class PromptModal extends Modal {
 				);
 			}
 		});
+		this.divider();
 
 		if (this.mode.kind === "create") {
 			const bodyRow = this.fieldRow("file-text", "Initial body");
@@ -379,6 +384,7 @@ export class PromptModal extends Modal {
 		}
 
 		this.renderRelated();
+		this.divider();
 
 		new Setting(contentEl)
 			.addButton((b) =>
@@ -397,6 +403,23 @@ export class PromptModal extends Modal {
 		setIcon(iconEl, icon);
 		row.nameEl.prepend(iconEl);
 		return row;
+	}
+
+	/** Thin separator between logical field groups (Identity/Organization/Details/Content). */
+	private divider(): void {
+		this.contentEl.createDiv({ cls: "promptbox-modal__divider" });
+	}
+
+	/**
+	 * Stacked row for a chip-based multi-part editor (Tags, Excluded placeholders): label and
+	 * description on their own full-width line, control on the next, its children forced into a
+	 * column so a chip box and a suggestions row never compete for horizontal space.
+	 */
+	private chipFieldRow(icon: string, name: string, desc?: string): { row: Setting; wrapper: HTMLDivElement } {
+		const row = this.fieldRow(icon, name).setClass("promptbox-setting--stacked");
+		if (desc !== undefined) row.setDesc(desc);
+		const wrapper = row.controlEl.createDiv({ cls: "promptbox-chip-field" });
+		return { row, wrapper };
 	}
 
 	/** Taxonomy dropdown with an inline "New value..." entry persisting to settings (backlog 13). */
