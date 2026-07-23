@@ -337,7 +337,29 @@
 }
 
 .promptbox-modal .setting-item {
-	padding: var(--size-2-3) 0;
+	padding: var(--size-4-2) 0;
+}
+
+/* Minimal, uniformly-sized field icons (modal layout pass) */
+.promptbox-modal .promptbox-field-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+/* Uniform control width for simple inline rows (label left, single widget right) */
+.promptbox-modal .setting-item:not(.promptbox-setting--stacked) .setting-item-control input[type="text"],
+.promptbox-modal .setting-item:not(.promptbox-setting--stacked) .setting-item-control select {
+	min-width: 220px;
+}
+
+.promptbox-modal .setting-item-description {
+	overflow-wrap: anywhere;
+}
+
+/* Thin separator between logical field groups (modal layout pass) */
+.promptbox-modal__divider {
+	border-top: 1px solid var(--background-modifier-border);
+	margin: var(--size-4-2) 0;
 }
 
 .promptbox-setting--stacked {
@@ -365,6 +387,15 @@
 .promptbox-setting--stacked textarea {
 	width: 100%;
 	resize: vertical;
+}
+
+/* Chip-based multi-part editors (Tags, Excluded placeholders): box and suggestions always
+   stacked vertically, never competing for horizontal space with the label/description. */
+.promptbox-chip-field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+	width: 100%;
 }
 
 /* Related section (ADR-0012, FR-19) */
