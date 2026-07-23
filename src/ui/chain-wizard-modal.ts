@@ -3,6 +3,7 @@ import { buildStepValues, partitionStepVariables, type StepVariablePartition } f
 import type { Prompt } from "../domain/prompt";
 import { assembleBody, detectWikilinks } from "../domain/transclusion";
 import { applyProfile, matchingProfiles, type VariableProfile } from "../domain/variable-profiles";
+import { setDestructiveStyle } from "./button-compat";
 import { resolveContextVariables } from "./context-variables";
 import { writeClipboard } from "./copy";
 
@@ -177,12 +178,7 @@ export class ChainWizardModal extends Modal {
 		});
 		new Setting(contentEl)
 			.addButton((b) => b.setButtonText("Skip this step").onClick(() => void this.advance()))
-			.addButton((b) =>
-				b
-					.setButtonText("Cancel chain")
-					.setWarning()
-					.onClick(() => this.close()),
-			);
+			.addButton((b) => setDestructiveStyle(b.setButtonText("Cancel chain")).onClick(() => this.close()));
 	}
 
 	private async advance(): Promise<void> {
