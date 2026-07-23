@@ -11,6 +11,7 @@ const FULL: PromptDraft = {
 	visibility: "public",
 	version: "2.1",
 	body: "Check the diff.",
+	excludedPlaceholders: ["CATEGORY"],
 };
 
 describe("draftToFrontmatter", () => {
@@ -24,6 +25,7 @@ describe("draftToFrontmatter", () => {
 			use_case: "PR checklist",
 			visibility: "public",
 			version: "2.1",
+			excluded_placeholders: ["CATEGORY"],
 		});
 	});
 
@@ -36,6 +38,7 @@ describe("draftToFrontmatter", () => {
 				quality: undefined,
 				useCase: "",
 				version: "",
+				excludedPlaceholders: [],
 			},
 			"type",
 		);

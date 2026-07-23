@@ -30,11 +30,14 @@ export async function writeClipboard(text: string, label: string): Promise<boole
  * zero new UI, and one whose placeholders are all context variables copies
  * without a modal once resolution settles (FR-4.4). `onCopied` (FR-23.1) runs
  * only after the clipboard write actually succeeds, never on cancel or failure.
+ * `excludedPlaceholders` names are treated like unresolved placeholders: left
+ * verbatim in the copied output, never added to the variable-fill modal.
  */
 export function copyWithVariables(
 	app: App,
 	title: string,
 	body: string,
+	excludedPlaceholders: string[],
 	sourcePath: string,
 	deps: VariableModalDeps,
 	onCopied?: () => void,
@@ -48,7 +51,8 @@ export function copyWithVariables(
 		const finish = (): void => {
 			const variables = parsePlaceholders(body);
 			const contextVars = variables.filter((v) => isContextVariable(v.name));
-			const userVars = variables.filter((v) => !isContextVariable(v.name));
+			const excluded = new Set(excludedPlaceholders);
+			const userVars = variables.filter((v) => !isContextVariable(v.name) && !excluded.has(v.name));
 			const afterCopy = (copied: boolean): void => {
 				if (unresolved.length > 0) {
 					new Notice(`Promptbox: unresolved link(s): ${unresolved.join(", ")}`);

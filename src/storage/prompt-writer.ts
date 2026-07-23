@@ -3,7 +3,7 @@ import { draftToFrontmatter, type PromptDraft } from "../domain/draft";
 import { resolveCollision, slugify } from "../domain/slug";
 import { todayISO } from "./frontmatter";
 
-const OPTIONAL_FIELDS = ["category", "tags", "quality", "use_case"] as const;
+const OPTIONAL_FIELDS = ["category", "tags", "quality", "use_case", "excluded_placeholders"] as const;
 
 /**
  * Creates a new prompt note (FR-3.1): slug file name with collision suffix,

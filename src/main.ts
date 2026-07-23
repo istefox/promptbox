@@ -246,6 +246,7 @@ export default class PromptboxPlugin extends Plugin {
 				this.app,
 				result.prompt.title,
 				body,
+				result.prompt.excludedPlaceholders,
 				result.prompt.path,
 				this.variableModalDeps(),
 				onCopied,
@@ -357,6 +358,7 @@ export default class PromptboxPlugin extends Plugin {
 			tagPool: this.buildTagPool(),
 			allPrompts: this.index.getAll(),
 			paletteCatalog: this.paletteCatalog(),
+			getBody: (path: string) => this.index.getBody(path),
 			persistSettings: () => this.saveSettings(),
 			openFile: (file: TFile) => {
 				void this.app.workspace.getLeaf(false).openFile(file);

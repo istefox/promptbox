@@ -58,7 +58,7 @@ export class PromptQuickPicker extends FuzzySuggestModal<Prompt> {
 		if (this.rawMode || evt.metaKey || evt.ctrlKey) {
 			copyRaw(prompt.title, body, onCopied);
 		} else {
-			copyWithVariables(this.app, prompt.title, body, prompt.path, this.plugin.variableModalDeps(), onCopied);
+			copyWithVariables(this.app, prompt.title, body, prompt.excludedPlaceholders, prompt.path, this.plugin.variableModalDeps(), onCopied);
 		}
 	}
 }

@@ -18,6 +18,8 @@ export interface Prompt {
 	favorite: boolean;
 	/** Present => chain note (list tolerantly cleaned); absent => normal prompt (ADR-0018). */
 	chain?: string[];
+	/** Placeholder names left untouched by "Copy with variables" (e.g. AI-filled, not user-filled). */
+	excludedPlaceholders: string[];
 	/** Unrecognized frontmatter fields, preserved verbatim (phase-2 namespaced fields included). */
 	custom: Record<string, unknown>;
 	/** Normalization problems found on read; the note is still usable (NFR-8). */
@@ -49,6 +51,7 @@ const STATIC_KNOWN_FIELDS = [
 	"updated",
 	"favorite",
 	"chain",
+	"excluded_placeholders",
 ];
 
 /** True when `key` would collide with a field Promptbox always reserves (issue #46). */
@@ -110,6 +113,24 @@ function readTags(value: unknown, warnings: string[]): string[] {
 			.filter((t) => t !== "");
 	}
 	warnings.push("invalid tags: expected list or string");
+	return [];
+}
+
+function readExcludedPlaceholders(value: unknown, warnings: string[]): string[] {
+	if (value === undefined || value === null) return [];
+	if (Array.isArray(value)) {
+		return value
+			.filter((t) => typeof t === "string" || typeof t === "number")
+			.map((t) => String(t).trim())
+			.filter((t) => t !== "");
+	}
+	if (typeof value === "string") {
+		return value
+			.split(",")
+			.map((t) => t.trim())
+			.filter((t) => t !== "");
+	}
+	warnings.push("invalid excluded_placeholders: expected list or string");
 	return [];
 }
 
@@ -192,6 +213,7 @@ export function normalizePrompt(rawInput: unknown, ctx: NormalizeContext): Promp
 		updated: readDate(raw, "updated", ctx.today, warnings),
 		favorite: readFavorite(raw["favorite"]),
 		chain: "chain" in raw ? readChain(raw["chain"]) : undefined,
+		excludedPlaceholders: readExcludedPlaceholders(raw["excluded_placeholders"], warnings),
 		custom,
 		warnings,
 	};

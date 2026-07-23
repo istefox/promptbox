@@ -171,6 +171,30 @@ describe("chain (ADR-0018)", () => {
 	});
 });
 
+describe("excludedPlaceholders", () => {
+	it("defaults to [] when the key is absent", () => {
+		const p = normalizePrompt({ title: "t" }, CTX);
+		expect(p.excludedPlaceholders).toEqual([]);
+	});
+
+	it("normalizes a well-formed list and keeps it out of custom", () => {
+		const p = normalizePrompt({ title: "t", excluded_placeholders: ["CATEGORY", "TOPIC"] }, CTX);
+		expect(p.excludedPlaceholders).toEqual(["CATEGORY", "TOPIC"]);
+		expect(p.custom).not.toHaveProperty("excluded_placeholders");
+	});
+
+	it("accepts a comma-separated string", () => {
+		const p = normalizePrompt({ title: "t", excluded_placeholders: "CATEGORY, TOPIC" }, CTX);
+		expect(p.excludedPlaceholders).toEqual(["CATEGORY", "TOPIC"]);
+	});
+
+	it("warns and defaults to [] for an invalid type", () => {
+		const p = normalizePrompt({ title: "t", excluded_placeholders: { nested: true } }, CTX);
+		expect(p.excludedPlaceholders).toEqual([]);
+		expect(p.warnings).toContain("invalid excluded_placeholders: expected list or string");
+	});
+});
+
 describe("configurable type key (issue #46)", () => {
 	const CUSTOM_CTX = { ...CTX, typeKey: "prompt_type", defaultType: "note" };
 
@@ -215,7 +239,7 @@ describe("isValidTypeKeyFormat (issue #46)", () => {
 
 describe("isReservedTypeKeyCollision (issue #46)", () => {
 	it("flags every other field Promptbox reserves", () => {
-		for (const key of ["title", "category", "tags", "quality", "use_case", "visibility", "version", "created", "updated", "favorite", "chain"]) {
+		for (const key of ["title", "category", "tags", "quality", "use_case", "visibility", "version", "created", "updated", "favorite", "chain", "excluded_placeholders"]) {
 			expect(isReservedTypeKeyCollision(key)).toBe(true);
 		}
 	});

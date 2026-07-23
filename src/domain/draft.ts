@@ -12,6 +12,8 @@ export interface PromptDraft {
 	version: string;
 	/** Initial body, create mode only (FR-3.3). */
 	body: string;
+	/** Placeholder names left untouched by "Copy with variables". */
+	excludedPlaceholders: string[];
 }
 
 /**
@@ -26,6 +28,7 @@ export function draftToFrontmatter(draft: PromptDraft, typeKey: string): Record<
 	fm[typeKey] = draft.type;
 	if (draft.category.trim() !== "") fm["category"] = draft.category.trim();
 	if (draft.tags.length > 0) fm["tags"] = [...draft.tags];
+	if (draft.excludedPlaceholders.length > 0) fm["excluded_placeholders"] = [...draft.excludedPlaceholders];
 	if (draft.quality !== undefined) fm["quality"] = draft.quality;
 	if (draft.useCase.trim() !== "") fm["use_case"] = draft.useCase.trim();
 	fm["visibility"] = draft.visibility;
